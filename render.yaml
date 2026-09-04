@@ -23,7 +23,7 @@ services:
       - key: DB_PASSWORD
         sync: false
       - key: DB_NAME
-        value: test
+        value: sys
       - key: DB_SSL
         value: true
       - key: DB_CONNECTION_LIMIT
