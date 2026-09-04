@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env.local
+
+# Next.js and build output
+frontend/.next/
+frontend/out/
+frontend/build/
+**/.next/
+**/out/
+**/build/
+
+# Runtime files and user uploads
+uploads/
+temp/
+backend/uploads/
+backend/temp/
+*.log
+
+# Coverage and local tooling
+coverage/
+.vercel/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*.swo
+
+# Local certificates and keys
+*.pem
+*.key
+*.crt

@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resizer API — Backend Control Center & Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-card: rgba(16, 22, 34, 0.75);
+      --bg-card-hover: rgba(22, 30, 48, 0.9);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(99, 102, 241, 0.3);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent-primary: #6366f1;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+      --font-heading: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Top Navigation Bar */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      background: rgba(7, 9, 14, 0.85);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.875rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+    }
+
+    .brand-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: white;
+    }
+
+    .brand-text h1 {
+      font-family: var(--font-heading);
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #34d399;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .btn-action {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.45rem 0.95rem;
+      border-radius: 8px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-action:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #4f46e5, #4338ca);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    }
+
+    /* Container Layout */
+    .dashboard-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 1.75rem 2rem 3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    /* Glass Cards */
+    .glass-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .stat-card {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--card-accent, #6366f1), transparent);
+    }
+
+    .stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+
+    .stat-title {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-icon-wrapper {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--card-accent, #6366f1);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .stat-value {
+      font-family: var(--font-heading);
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-subtitle {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-cyan {
+      background: rgba(6, 182, 212, 0.15);
+      color: #22d3ee;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .badge-purple {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    /* Telemetry & Charts Grid */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 1100px) {
+      .telemetry-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card-title {
+      font-family: var(--font-heading);
+      font-size: 1.0625rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      color: #fff;
+    }
+
+    .telemetry-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.875rem;
+    }
+
+    .telemetry-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .telemetry-label {
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .telemetry-value {
+      font-family: var(--font-mono);
+      font-weight: 500;
+      color: #e5e7eb;
+    }
+
+    /* Progress bar */
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Interactive Testing Sandbox */
+    .sandbox-card {
+      background: linear-gradient(135deg, rgba(22, 28, 45, 0.85), rgba(16, 22, 34, 0.75));
+      border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .sandbox-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .sandbox-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .dropzone {
+      border: 2px dashed rgba(99, 102, 241, 0.35);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      background: rgba(99, 102, 241, 0.03);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: #6366f1;
+      background: rgba(99, 102, 241, 0.08);
+      transform: scale(1.01);
+    }
+
+    .sandbox-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .control-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .form-input, .form-select {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-family: var(--font-body);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    }
+
+    .sandbox-result {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-height: 200px;
+    }
+
+    .result-preview-box {
+      width: 100%;
+      height: 180px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .result-preview-box img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    /* Jobs Table */
+    .table-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .table-filters {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.8125rem;
+      outline: none;
+      width: 220px;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.875rem 1rem;
+      font-family: var(--font-heading);
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #e5e7eb;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .filename-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .file-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .format-tag {
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+    }
+
+    .tag-webp { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .tag-avif { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .tag-jpeg, .tag-jpg { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .tag-png { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3); }
+
+    /* Pagination */
+    .pagination-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .pagination-controls {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .page-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.3rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: rgba(16, 22, 34, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-left: 4px solid var(--accent-primary);
+      padding: 0.875rem 1.25rem;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.875rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm3 3a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm11 8.5-4.5-6-3.5 4.5-2.5-3-3.5 4.5h14z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Resizer Control Center</h1>
+        <p>Backend Engine & Database Monitor</p>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span id="header-status">Live Connected</span>
+      </div>
+
+      <a href="/api/health" target="_blank" class="btn-action">
+        <span>🩺 Health API</span>
+      </a>
+
+      <a href="/" target="_blank" class="btn-action">
+        <span>📡 API Root</span>
+      </a>
+
+      <button id="refresh-btn" class="btn-action btn-primary" onclick="loadAllDashboardData()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+        </svg>
+        <span>Refresh</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <div class="dashboard-container">
+
+    <!-- Top Key Metrics Cards -->
+    <div class="stats-grid">
+      <!-- Card 1: Total Processed -->
+      <div class="glass-card stat-card" style="--card-accent: #6366f1;">
+        <div class="stat-header">
+          <span class="stat-title">Total Images Processed</span>
+          <div class="stat-icon-wrapper">🖼️</div>
+        </div>
+        <div class="stat-value" id="stat-total-jobs">0</div>
+        <div class="stat-subtitle">
+          <span class="stat-badge badge-success" id="stat-completed-rate">100% Success</span>
+          <span id="stat-failed-count">0 failed</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Bandwidth & Data Saved -->
+      <div class="glass-card stat-card" style="--card-accent: #10b981;">
+        <div class="stat-header">
+          <span class="stat-title">Storage / Bandwidth Saved</span>
+          <div class="stat-icon-wrapper">💾</div>
+        </div>
+        <div class="stat-value" id="stat-bytes-saved">0 MB</div>
+        <div class="stat-subtitle">
+          <span class="stat-badge badge-success" id="stat-total-original">Original: 0 MB</span>
+          <span id="stat-total-output">Output: 0 MB</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Avg Compression Efficiency -->
+      <div class="glass-card stat-card" style="--card-accent: #06b6d4;">
+        <div class="stat-header">
+          <span class="stat-title">Avg Size Reduction</span>
+          <div class="stat-icon-wrapper">⚡</div>
+        </div>
+        <div class="stat-value" id="stat-avg-savings">0%</div>
+        <div class="stat-subtitle">
+          <span class="stat-badge badge-cyan" id="stat-avg-latency">0 ms avg latency</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Server & Uptime -->
+      <div class="glass-card stat-card" style="--card-accent: #a855f7;">
+        <div class="stat-header">
+          <span class="stat-title">Server Uptime</span>
+          <div class="stat-icon-wrapper">⏱️</div>
+        </div>
+        <div class="stat-value" id="stat-uptime">0s</div>
+        <div class="stat-subtitle">
+          <span class="stat-badge badge-purple" id="stat-node-version">Node --</span>
+          <span id="stat-env">development</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Telemetry & Live Monitor Grid -->
+    <div class="telemetry-grid">
+      <!-- Database Telemetry -->
+      <div class="glass-card">
+        <h3 class="card-title">
+          <span>🗄️ MySQL Database Telemetry</span>
+        </h3>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Status</span>
+          <span class="telemetry-value">
+            <span class="stat-badge badge-success" id="db-status-badge">Connected</span>
+          </span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Database Name</span>
+          <span class="telemetry-value" id="db-name">nextjs_app</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Host & Port</span>
+          <span class="telemetry-value" id="db-host">localhost:3306</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">MySQL Version</span>
+          <span class="telemetry-value" id="db-version">8.0</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Ping Latency</span>
+          <span class="telemetry-value" id="db-latency">0 ms</span>
+        </div>
+      </div>
+
+      <!-- Memory & CPU Telemetry -->
+      <div class="glass-card">
+        <h3 class="card-title">
+          <span>📊 System & Memory Health</span>
+        </h3>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Process Heap Used</span>
+          <span class="telemetry-value" id="mem-heap-used">0 MB</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Process RSS</span>
+          <span class="telemetry-value" id="mem-rss">0 MB</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">System RAM Usage</span>
+          <span class="telemetry-value" id="sys-ram-usage">0%</span>
+        </div>
+        <div class="progress-track">
+          <div id="ram-progress" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #6366f1, #06b6d4);"></div>
+        </div>
+        <div class="telemetry-item" style="margin-top: 0.5rem;">
+          <span class="telemetry-label">Platform / CPUs</span>
+          <span class="telemetry-value" id="sys-cpu-cores">--</span>
+        </div>
+      </div>
+
+      <!-- Output Format Breakdown Chart -->
+      <div class="glass-card">
+        <h3 class="card-title">
+          <span>🎨 Target Formats Converted</span>
+        </h3>
+        <div style="height: 160px; position: relative; display: flex; align-items: center; justify-content: center;">
+          <canvas id="formatChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Image Processing Sandbox Tester -->
+    <div class="glass-card sandbox-card">
+      <h3 class="card-title">
+        <span>🧪 Interactive Test Sandbox (Upload & Convert Directly)</span>
+      </h3>
+      <div class="sandbox-grid">
+        <!-- Left: Upload & Config Controls -->
+        <div>
+          <div class="dropzone" id="dropzone" onclick="document.getElementById('sandbox-file-input').click()">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.75" style="margin-bottom: 0.75rem;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+            </svg>
+            <p style="font-weight: 600; color: #fff;" id="dropzone-text">Click or drag an image here to test</p>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Supports JPG, PNG, WebP, AVIF, TIFF, SVG up to 50MB</p>
+            <input type="file" id="sandbox-file-input" style="display: none;" accept="image/*" onchange="handleFileSelect(event)">
+          </div>
+
+          <div class="sandbox-controls">
+            <div class="control-group">
+              <label class="control-label">Target Format</label>
+              <select id="sandbox-format" class="form-select">
+                <option value="webp" selected>WebP (Recommended)</option>
+                <option value="avif">AVIF (Ultra Compression)</option>
+                <option value="jpeg">JPEG / JPG</option>
+                <option value="png">PNG (Lossless)</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label class="control-label">Quality (<span id="quality-val">80</span>%)</label>
+              <input type="range" id="sandbox-quality" min="10" max="100" value="80" class="form-input" style="padding: 0.35rem 0;" oninput="document.getElementById('quality-val').innerText = this.value">
+            </div>
+
+            <div class="control-group">
+              <label class="control-label">Width (px)</label>
+              <input type="number" id="sandbox-width" placeholder="Auto (keep aspect)" class="form-input">
+            </div>
+
+            <div class="control-group">
+              <label class="control-label">Height (px)</label>
+              <input type="number" id="sandbox-height" placeholder="Auto (keep aspect)" class="form-input">
+            </div>
+          </div>
+
+          <button id="process-sandbox-btn" class="btn-action btn-primary" style="width: 100%; margin-top: 1rem; justify-content: center; padding: 0.75rem;" onclick="runSandboxTest()">
+            🚀 Process & Record to MySQL
+          </button>
+        </div>
+
+        <!-- Right: Real-Time Preview & Comparison -->
+        <div class="sandbox-result">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.8125rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Result Preview</span>
+            <span id="sandbox-savings-badge" class="stat-badge badge-success" style="display: none;">0% Saved</span>
+          </div>
+
+          <div class="result-preview-box" id="result-preview-container">
+            <p style="color: var(--text-muted); font-size: 0.8125rem;">Preview will appear here after conversion</p>
+          </div>
+
+          <div id="result-stats" style="display: none;" class="telemetry-item">
+            <div>
+              <p style="font-size: 0.75rem; color: var(--text-muted);">Original vs Output</p>
+              <p class="telemetry-value" id="result-sizes">-- &rarr; --</p>
+            </div>
+            <div style="text-align: right;">
+              <p style="font-size: 0.75rem; color: var(--text-muted);">Duration</p>
+              <p class="telemetry-value" id="result-time">-- ms</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Processing Activity History Table -->
+    <div class="glass-card">
+      <div class="table-header-row">
+        <h3 class="card-title" style="margin-bottom: 0;">
+          <span>📜 Recent Processing Logs (MySQL `image_jobs`)</span>
+        </h3>
+
+        <div class="table-filters">
+          <input type="text" id="job-search" placeholder="Search filename..." class="search-input" onkeyup="handleSearch(event)">
+          <select id="format-filter" class="form-select" onchange="loadJobsTable(1)">
+            <option value="">All Formats</option>
+            <option value="webp">WebP</option>
+            <option value="avif">AVIF</option>
+            <option value="jpeg">JPEG</option>
+            <option value="png">PNG</option>
+          </select>
+          <button class="btn-action" onclick="confirmClearJobs()" style="color: var(--accent-rose); border-color: rgba(244, 63, 94, 0.3);">
+            🗑️ Clear History
+          </button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>File Name</th>
+              <th>Format</th>
+              <th>Original Size</th>
+              <th>Processed Size</th>
+              <th>Savings</th>
+              <th>Dimensions</th>
+              <th>Latency</th>
+              <th>Status</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="jobs-tbody">
+            <tr>
+              <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                Loading recent logs from MySQL...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination-bar">
+        <span id="pagination-info">Showing page 1</span>
+        <div class="pagination-controls">
+          <button id="prev-page-btn" class="page-btn" onclick="changePage(-1)" disabled>&larr; Previous</button>
+          <button id="next-page-btn" class="page-btn" onclick="changePage(1)" disabled>Next &rarr;</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Dashboard JavaScript Logic -->
+  <script>
+    let currentPage = 1;
+    let totalPages = 1;
+    let formatChartInstance = null;
+    let selectedFile = null;
+
+    // Toast helper
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = `<span>${type === 'error' ? '❌' : '✨'}</span> <span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Format uptime
+    function formatUptime(seconds) {
+      const d = Math.floor(seconds / (3600 * 24));
+      const h = Math.floor((seconds % (3600 * 24)) / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (d > 0) return `${d}d ${h}h`;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    // Load Overview Stats
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/dashboard/stats');
+        const data = await res.json();
+
+        if (!data.success) return;
+
+        // Populate Top Cards
+        document.getElementById('stat-total-jobs').innerText = data.analytics.totalJobs.toLocaleString();
+        document.getElementById('stat-bytes-saved').innerText = data.analytics.totalBytesSavedFormatted;
+        document.getElementById('stat-total-original').innerText = `Orig: ${data.analytics.totalOriginalFormatted}`;
+        document.getElementById('stat-total-output').innerText = `Output: ${data.analytics.totalOutputFormatted}`;
+        document.getElementById('stat-avg-savings').innerText = `${data.analytics.avgSavingsPercent}%`;
+        document.getElementById('stat-avg-latency').innerText = `${data.analytics.avgProcessingTimeMs} ms avg`;
+        document.getElementById('stat-uptime').innerText = formatUptime(data.system.uptimeSeconds);
+        document.getElementById('stat-node-version').innerText = data.system.nodeVersion;
+        document.getElementById('stat-failed-count').innerText = `${data.analytics.failedJobs} failed`;
+
+        // Database
+        document.getElementById('db-name').innerText = data.database.name;
+        document.getElementById('db-host').innerText = `${data.database.host}:${data.database.port}`;
+        document.getElementById('db-version').innerText = data.database.version;
+        document.getElementById('db-latency').innerText = `${data.database.latencyMs} ms`;
+        document.getElementById('db-status-badge').innerText = data.database.status.toUpperCase();
+
+        // System Memory
+        document.getElementById('mem-heap-used').innerText = data.system.memory.processHeapUsedFormatted;
+        document.getElementById('mem-rss').innerText = data.system.memory.processRssFormatted;
+        document.getElementById('sys-ram-usage').innerText = `${data.system.memory.usagePercent}% (${data.system.memory.usedFormatted} / ${data.system.memory.totalFormatted})`;
+        document.getElementById('ram-progress').style.width = `${data.system.memory.usagePercent}%`;
+        document.getElementById('sys-cpu-cores').innerText = `${data.system.cpuCores} Cores (${data.system.platform})`;
+
+        // Render Format Chart
+        renderFormatChart(data.analytics.formatBreakdown || []);
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    // Render Chart.js Format Breakdown
+    function renderFormatChart(formats) {
+      const ctx = document.getElementById('formatChart').getContext('2d');
+      const labels = formats.length ? formats.map(f => f.target_format.toUpperCase()) : ['WEBP', 'AVIF', 'JPEG', 'PNG'];
+      const counts = formats.length ? formats.map(f => f.count) : [0, 0, 0, 0];
+
+      const colors = ['#10b981', '#a855f7', '#f59e0b', '#06b6d4', '#6366f1'];
+
+      if (formatChartInstance) {
+        formatChartInstance.data.labels = labels;
+        formatChartInstance.data.datasets[0].data = counts;
+        formatChartInstance.update();
+        return;
+      }
+
+      formatChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: colors,
+            borderWidth: 0,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                color: '#9ca3af',
+                font: { family: 'Plus Jakarta Sans', size: 11 },
+                boxWidth: 12
+              }
+            }
+          },
+          cutout: '70%'
+        }
+      });
+    }
+
+    // Load Recent Jobs Table
+    async function loadJobsTable(page = 1) {
+      currentPage = page;
+      const search = document.getElementById('job-search').value;
+      const format = document.getElementById('format-filter').value;
+
+      try {
+        const url = `/api/dashboard/jobs?page=${page}&limit=10&search=${encodeURIComponent(search)}&format=${encodeURIComponent(format)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const tbody = document.getElementById('jobs-tbody');
+        if (!data.jobs || data.jobs.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                No processing activity recorded yet. Try processing an image in the sandbox above!
+              </td>
+            </tr>
+          `;
+          document.getElementById('pagination-info').innerText = 'Page 1 of 1 (0 total)';
+          document.getElementById('prev-page-btn').disabled = true;
+          document.getElementById('next-page-btn').disabled = true;
+          return;
+        }
+
+        totalPages = data.pagination.totalPages;
+        document.getElementById('pagination-info').innerText = `Page ${data.pagination.page} of ${totalPages} (${data.pagination.total} records)`;
+        document.getElementById('prev-page-btn').disabled = currentPage <= 1;
+        document.getElementById('next-page-btn').disabled = currentPage >= totalPages;
+
+        tbody.innerHTML = data.jobs.map(job => `
+          <tr>
+            <td style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.75rem;">#${job.id}</td>
+            <td>
+              <div class="filename-cell">
+                <div class="file-icon">${job.target_format.substring(0, 3).toUpperCase()}</div>
+                <span title="${job.original_name}">${job.original_name.length > 22 ? job.original_name.substring(0, 20) + '...' : job.original_name}</span>
+              </div>
+            </td>
+            <td><span class="format-tag tag-${job.target_format}">${job.target_format}</span></td>
+            <td style="font-family: var(--font-mono);">${job.originalSizeFormatted}</td>
+            <td style="font-family: var(--font-mono);">${job.outputSizeFormatted}</td>
+            <td>
+              <span class="stat-badge ${job.savings_percent > 0 ? 'badge-success' : 'badge-cyan'}">
+                ${job.savings_percent > 0 ? '-' + Math.round(job.savings_percent) + '%' : '0%'}
+              </span>
+            </td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted);">
+              ${job.width && job.height ? `${job.width}×${job.height}` : 'Auto'}
+            </td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem;">${job.processing_time_ms}ms</td>
+            <td>
+              <span class="stat-badge ${job.status === 'completed' ? 'badge-success' : 'badge-rose'}">
+                ${job.status}
+              </span>
+            </td>
+            <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
+              ${new Date(job.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load jobs table:', err);
+      }
+    }
+
+    function changePage(direction) {
+      const target = currentPage + direction;
+      if (target >= 1 && target <= totalPages) {
+        loadJobsTable(target);
+      }
+    }
+
+    let searchTimeout = null;
+    function handleSearch(e) {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadJobsTable(1);
+      }, 300);
+    }
+
+    // Confirm and clear logs
+    async function confirmClearJobs() {
+      if (confirm('Are you sure you want to clear all image processing history logs from MySQL?')) {
+        try {
+          const res = await fetch('/api/dashboard/jobs', { method: 'DELETE' });
+          const data = await res.json();
+          showToast(data.message || 'Logs cleared successfully!');
+          loadAllDashboardData();
+        } catch (err) {
+          showToast('Failed to clear logs', 'error');
+        }
+      }
+    }
+
+    // Sandbox File Selection
+    function handleFileSelect(e) {
+      if (e.target.files && e.target.files[0]) {
+        selectedFile = e.target.files[0];
+        document.getElementById('dropzone-text').innerText = `Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
+      }
+    }
+
+    // Drag and drop handlers
+    const dropzone = document.getElementById('dropzone');
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        selectedFile = e.dataTransfer.files[0];
+        document.getElementById('dropzone-text').innerText = `Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
+      }
+    });
+
+    // Run Sandbox Test
+    async function runSandboxTest() {
+      if (!selectedFile) {
+        showToast('Please select or drop an image file first!', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('process-sandbox-btn');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Processing with Sharp...';
+
+      const formData = new FormData();
+      formData.append('image', selectedFile);
+      formData.append('format', document.getElementById('sandbox-format').value);
+      formData.append('quality', document.getElementById('sandbox-quality').value);
+
+      const w = document.getElementById('sandbox-width').value;
+      const h = document.getElementById('sandbox-height').value;
+      if (w) formData.append('width', w);
+      if (h) formData.append('height', h);
+
+      try {
+        const res = await fetch('/api/images/process?responseType=json', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Processed in ${data.processingTimeMs}ms! Saved ${data.savingsPercent}%`);
+          
+          // Display preview
+          const previewBox = document.getElementById('result-preview-container');
+          previewBox.innerHTML = `<img src="${data.dataBase64}" alt="Processed Result">`;
+
+          // Display stats
+          const badge = document.getElementById('sandbox-savings-badge');
+          badge.style.display = 'inline-flex';
+          badge.innerText = `${data.savingsPercent}% Size Reduction`;
+
+          const statsRow = document.getElementById('result-stats');
+          statsRow.style.display = 'flex';
+          document.getElementById('result-sizes').innerText = `${(data.originalSizeBytes / 1024).toFixed(1)} KB → ${(data.outputSizeBytes / 1024).toFixed(1)} KB`;
+          document.getElementById('result-time').innerText = `${data.processingTimeMs} ms`;
+
+          // Refresh metrics and jobs table immediately
+          loadAllDashboardData();
+        } else {
+          showToast(data.error || 'Failed to process image', 'error');
+        }
+      } catch (err) {
+        showToast(err.message || 'Error occurred during processing', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🚀 Process & Record to MySQL';
+      }
+    }
+
+    // Refresh all data
+    function loadAllDashboardData() {
+      loadStats();
+      loadJobsTable(currentPage);
+    }
+
+    // Initial load and polling every 6 seconds
+    loadAllDashboardData();
+    setInterval(loadAllDashboardData, 6000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: makes every `dark:` utility follow the .dark class
+   toggled by the theme switcher instead of OS preference only. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-elevated: #f1f5f9;
+  --primary: #0f172a;
+  --secondary: #334155;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --border: #e2e8f0;
+  --positive: #059669;
+  --danger: #dc2626;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #f8fafc;
+  --surface: #09090b;
+  --surface-elevated: #18181b;
+  --primary: #f8fafc;
+  --secondary: #94a3b8;
+  --muted: #a1a1aa;
+  --accent: #3b82f6;
+  --border: #27272a;
+  --positive: #34d399;
+  --danger: #f87171;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-positive: var(--positive);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* The editor has a dense dark authoring palette; map it to the app theme in day mode. */
+html:not(.dark) .post-editor-theme [class*="bg-zinc-950"] {
+  background-color: var(--surface-elevated) !important;
+}
+
+html:not(.dark) .post-editor-theme [class*="bg-zinc-900"] {
+  background-color: var(--surface) !important;
+}
+
+html:not(.dark) .post-editor-theme [class*="border-zinc-800"] {
+  border-color: var(--border) !important;
+}
+
+html:not(.dark) .post-editor-theme [class*="text-white"]:not(button):not(button *) {
+  color: var(--primary) !important;
+}
+
+html:not(.dark) .post-editor-theme [class*="text-zinc-200"]:not(button):not(button *),
+html:not(.dark) .post-editor-theme [class*="text-zinc-300"]:not(button):not(button *) {
+  color: var(--secondary) !important;
+}
+
+html:not(.dark) .post-editor-theme [class*="text-zinc-400"]:not(button):not(button *),
+html:not(.dark) .post-editor-theme [class*="text-zinc-500"]:not(button):not(button *) {
+  color: var(--muted) !important;
+}
+
+/* Smooth anchor scrolling (hero CTAs -> studio) */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Ensure headings and text remain visible in light and dark modes */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--primary);
+}
+
+/* Consistent visible focus ring for keyboard users */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* ==========================================================================
+   Animation utilities (tailwindcss-animate compatible subset)
+   Used across Navbar dropdowns, mobile drawer, tabs, modals and toasts.
+   ========================================================================== */
+@keyframes tw-animate-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(0, var(--tw-enter-translate-y, 0), 0) scale(var(--tw-enter-scale, 1));
+  }
+}
+
+.animate-in {
+  animation-name: tw-animate-enter;
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  --tw-enter-opacity: 0;
+}
+
+.slide-in-from-top-2 {
+  --tw-enter-translate-y: -0.5rem;
+}
+
+.slide-in-from-bottom-3 {
+  --tw-enter-translate-y: 0.75rem;
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 2.5s linear infinite;
+}
+
+/* Subtle float animation for hero decorative elements */
+@keyframes float-soft {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float-soft {
+  animation: float-soft 5s ease-in-out infinite;
+}

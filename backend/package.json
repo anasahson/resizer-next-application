@@ -1,0 +1,34 @@
+{
+  "name": "resizer-backend",
+  "version": "1.0.0",
+  "description": "Express.js backend for image resizing, compression, and format conversion",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": [
+    "express",
+    "sharp",
+    "image-resizer",
+    "converter",
+    "compression"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
+    "mysql2": "^3.23.4",
+    "redis": "^6.2.1",
+    "sharp": "^0.35.3",
+    "stripe": "^22.6.1"
+  }
+}

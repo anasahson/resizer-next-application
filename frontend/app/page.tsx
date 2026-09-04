@@ -1,0 +1,1865 @@
+// app/page.tsx
+'use client';
+
+import { useState, useRef, useEffect, useMemo, useCallback, type ChangeEvent, type DragEvent } from 'react';
+import Link from 'next/link';
+import JSZip from 'jszip';
+import {
+  Upload,
+  Download,
+  Image as ImageIcon,
+  Copy,
+  Check,
+  RotateCw,
+  RotateCcw,
+  FlipHorizontal,
+  FlipVertical,
+  Sliders,
+  Eye,
+  Sparkles,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RefreshCw,
+  Layers,
+  FileArchive,
+  Link as LinkIcon,
+  Camera,
+  Trash2,
+  Share2,
+  CheckCircle2,
+  AlertCircle,
+  Lock,
+  Unlock,
+  Zap,
+} from 'lucide-react';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
+  || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
+  || 'http://localhost:5000';
+
+interface ProcessedResult {
+  filename: string;
+  originalName: string;
+  originalSizeBytes: number;
+  outputSizeBytes: number;
+  savingsPercent: number;
+  width: number;
+  height: number;
+  format: string;
+  processingTimeMs: number;
+  dataBase64: string;
+}
+
+// Small helper to safely display image file previews
+function FileImage({ file, className }: { file: File; className?: string }) {
+  const [url, setUrl] = useState('');
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  return <img src={url || undefined} className={className} alt={file.name} />;
+}
+
+function FileThumb({
+  file,
+  isSelected,
+  onSelect,
+  onRemove,
+  result,
+  isProcessing,
+  onDownload,
+  onCopy,
+}: {
+  file: File;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  onRemove: () => void;
+  result?: ProcessedResult;
+  isProcessing: boolean;
+  onDownload?: () => void;
+  onCopy?: () => void;
+}) {
+  return (
+    <div
+      onClick={onSelect}
+      className={`relative group rounded-2xl p-1.5 transition-all cursor-pointer border ${
+        isSelected
+          ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/50 dark:bg-blue-500/10'
+          : 'border-border hover:border-blue-400 bg-surface dark:bg-zinc-900'
+      }`}
+    >
+      <div className="relative">
+        <FileImage file={file} className="w-full h-24 object-cover rounded-xl border border-border/60" />
+
+        {/* Processing / result status overlay */}
+        {isProcessing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl">
+            <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          </div>
+        )}
+        {result && (
+          <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-extrabold shadow">
+            -{Math.max(0, result.savingsPercent)}%
+          </div>
+        )}
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          disabled={isProcessing}
+          className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/70 hover:bg-rose-600 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30 flex items-center justify-center"
+          aria-label="Remove file"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="mt-1.5 flex items-start justify-between gap-1">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs truncate font-medium text-primary dark:text-zinc-200">{file.name}</p>
+          <div className="flex items-center gap-1 text-[11px] text-muted font-mono truncate mt-0.5">
+            <span>{formatFileSize(file.size)}</span>
+            {result && (
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                → {formatFileSize(result.outputSizeBytes)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {result && (
+          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {onCopy && (
+              <button
+                onClick={onCopy}
+                className="p-1 rounded-lg border border-border hover:border-blue-400 text-muted hover:text-blue-500 transition-colors"
+                title="Copy to clipboard"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            )}
+            {onDownload && (
+              <button
+                onClick={onDownload}
+                className="p-1 rounded-lg border border-border text-muted hover:text-primary hover:border-primary transition-colors"
+                title="Download optimized file"
+              >
+                <Download className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
+interface PresetItem {
+  w: number;
+  h: number;
+  name: string;
+  category: 'social' | 'ecommerce' | 'devices';
+  badge?: string;
+}
+
+export default function Resizer() {
+  // ===== STATE =====
+  const [files, setFiles] = useState<File[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState<number>(0);
+  const [currentPreset, setCurrentPreset] = useState<string | null>('instagram-post');
+  const [presetCategory, setPresetCategory] = useState<'social' | 'ecommerce' | 'devices'>('social');
+  const [maintainRatio, setMaintainRatio] = useState(true);
+  const [fitMode, setFitMode] = useState<'fit' | 'fill' | 'stretch' | 'contain'>('fit');
+  const [aiCrop, setAiCrop] = useState(false);
+  const [width, setWidth] = useState(1080);
+  const [height, setHeight] = useState(1080);
+  const [scale, setScale] = useState(100);
+  const [darkMode, setDarkMode] = useState(false);
+  const [format, setFormat] = useState('webp');
+  const [quality, setQuality] = useState(82);
+  const [dragActive, setDragActive] = useState(false);
+  const [downloadState, setDownloadState] = useState<'idle' | 'processing' | 'done'>('idle');
+  const [originalDims, setOriginalDims] = useState<{ w: number; h: number } | null>(null);
+  const [pendingPreset, setPendingPreset] = useState<string | null>(null);
+  const [results, setResults] = useState<ProcessedResult[]>([]);
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [targetMaxKb, setTargetMaxKb] = useState<number | null>(null);
+  const [filenameSuffix, setFilenameSuffix] = useState<string>('_optimized');
+
+  // ===== TRANSFORMATIONS (ROTATE, FLIP, ADJUSTMENTS) =====
+  const [rotate, setRotate] = useState<number>(0);
+  const [flipH, setFlipH] = useState<boolean>(false);
+  const [flipV, setFlipV] = useState<boolean>(false);
+  const [brightness, setBrightness] = useState<number>(100);
+  const [contrast, setContrast] = useState<number>(100);
+  const [saturation, setSaturation] = useState<number>(100);
+  const [blurVal, setBlurVal] = useState<number>(0);
+  const [filterPreset, setFilterPreset] = useState<'none' | 'grayscale' | 'sepia' | 'invert' | 'vivid'>('none');
+  const [sharpen, setSharpen] = useState<boolean>(false);
+  const [padColor, setPadColor] = useState<string>('#ffffff');
+  const [usePadColor, setUsePadColor] = useState<boolean>(false);
+
+  // ===== PREVIEW & COMPARE CONTROLS =====
+  const [compareMode, setCompareMode] = useState<'split' | 'side' | 'result'>('split');
+  const [splitPos, setSplitPos] = useState<number>(50);
+  const [isDraggingSplit, setIsDraggingSplit] = useState<boolean>(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  // ===== MODALS & TOASTS =====
+  const [showUrlModal, setShowUrlModal] = useState<boolean>(false);
+  const [urlInput, setUrlInput] = useState<string>('');
+  const [urlLoading, setUrlLoading] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'presets' | 'filters' | 'export'>('presets');
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const originalWidthRef = useRef(1920);
+  const originalHeightRef = useRef(1080);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const afterPreviewRef = useRef<HTMLDivElement>(null);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  // ===== PRESETS =====
+  const presets: Record<string, PresetItem> = {
+    'instagram-post': { w: 1080, h: 1080, name: 'Instagram Square', category: 'social', badge: '1:1' },
+    'instagram-story': { w: 1080, h: 1920, name: 'Instagram Story / Reel', category: 'social', badge: '9:16' },
+    twitter: { w: 1200, h: 675, name: 'X / Twitter Post', category: 'social', badge: '16:9' },
+    facebook: { w: 1200, h: 630, name: 'Facebook Cover', category: 'social', badge: '1.9:1' },
+    youtube: { w: 1280, h: 720, name: 'YouTube Thumbnail', category: 'social', badge: 'HD' },
+    linkedin: { w: 1200, h: 627, name: 'LinkedIn Banner', category: 'social', badge: 'Banner' },
+    tiktok: { w: 1080, h: 1920, name: 'TikTok Video', category: 'social', badge: '9:16' },
+    amazon: { w: 2000, h: 2000, name: 'Amazon Product', category: 'ecommerce', badge: 'Hi-Res' },
+    shopify: { w: 2048, h: 2048, name: 'Shopify Square', category: 'ecommerce', badge: 'Square' },
+    etsy: { w: 2000, h: 1500, name: 'Etsy Listing', category: 'ecommerce', badge: '4:3' },
+    banner: { w: 1920, h: 600, name: 'Hero Web Banner', category: 'ecommerce', badge: '3.2:1' },
+    'screen-4k': { w: 3840, h: 2160, name: '4K Ultra HD', category: 'devices', badge: '4K' },
+    'screen-fhd': { w: 1920, h: 1080, name: 'Full HD 1080p', category: 'devices', badge: '1080p' },
+    avatar: { w: 512, h: 512, name: 'Avatar / App Icon', category: 'devices', badge: 'Icon' },
+  };
+
+  // ===== TOAST HELPER =====
+  const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  // ===== FILE HANDLING =====
+  const processFiles = (newFiles: File[]) => {
+    const imageFiles = newFiles.filter((f) => f.type.startsWith('image/')).slice(0, 50);
+    if (imageFiles.length === 0) return;
+
+    setFiles((prev) => [...prev, ...imageFiles]);
+    setPendingPreset(null);
+
+    const activeFile = imageFiles[0];
+    if (activeFile) {
+      const img = new Image();
+      img.onload = () => {
+        originalWidthRef.current = img.naturalWidth;
+        originalHeightRef.current = img.naturalHeight;
+        setOriginalDims({ w: img.naturalWidth, h: img.naturalHeight });
+      };
+      img.src = URL.createObjectURL(activeFile);
+    }
+  };
+
+  const handleFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      processFiles(Array.from(e.target.files));
+      e.target.value = '';
+    }
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragActive(false);
+    processFiles(Array.from(e.dataTransfer.files));
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragActive(false);
+  };
+
+  const clearAll = () => {
+    setFiles([]);
+    setSelectedIndex(0);
+    setOriginalDims(null);
+    setResults([]);
+    setDownloadState('idle');
+    setProcessingError(null);
+    showToast('Queue cleared');
+  };
+
+  // ===== CLIPBOARD PASTE SUPPORT (Ctrl + V) =====
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
+        const pastedFiles = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith('image/'));
+        if (pastedFiles.length > 0) {
+          processFiles(pastedFiles);
+          showToast(`Pasted ${pastedFiles.length} image(s) from clipboard!`);
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [showToast]);
+
+  // Rotation & Flip Handlers
+  const handleRotateCw = () => setRotate((prev) => (prev + 90) % 360);
+  const handleRotateCcw = () => setRotate((prev) => (prev - 90 + 360) % 360);
+  const handleFlipH = () => setFlipH((prev) => !prev);
+  const handleFlipV = () => setFlipV((prev) => !prev);
+
+  // Target size optimizer
+  const handleTargetSize = (maxKb: number) => {
+    setTargetMaxKb(maxKb);
+    if (maxKb <= 100) {
+      setFormat('webp');
+      setQuality(60);
+    } else if (maxKb <= 250) {
+      setFormat('webp');
+      setQuality(75);
+    } else if (maxKb <= 500) {
+      setFormat('webp');
+      setQuality(85);
+    } else {
+      setQuality(90);
+    }
+    showToast(`Target size: < ${maxKb} KB. Optimal settings applied.`);
+  };
+
+  // Import Image from URL
+  const handleImportUrl = async () => {
+    if (!urlInput.trim()) return;
+    setUrlLoading(true);
+    try {
+      const response = await fetch(urlInput.trim());
+      if (!response.ok) throw new Error('Could not fetch image from this URL.');
+      const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) throw new Error('URL does not point to a valid image.');
+      const ext = blob.type.split('/')[1] || 'jpg';
+      const file = new File([blob], `imported_${Date.now()}.${ext}`, { type: blob.type });
+      processFiles([file]);
+      setShowUrlModal(false);
+      setUrlInput('');
+      showToast('Image imported successfully!');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to import from URL. (CORS restriction)', 'error');
+    } finally {
+      setUrlLoading(false);
+    }
+  };
+
+  // Split-Screen Dragging
+  const handleSplitMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingSplit || !splitContainerRef.current) return;
+    const rect = splitContainerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    setSplitPos(Math.round((x / rect.width) * 100));
+  };
+
+  const handleSplitTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!splitContainerRef.current) return;
+    const touch = e.touches[0];
+    const rect = splitContainerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(touch.clientX - rect.left, rect.width));
+    setSplitPos(Math.round((x / rect.width) * 100));
+  };
+
+  // Live CSS Filter style for preview
+  const livePreviewFilterStyle = useMemo(() => {
+    const filters: string[] = [];
+    if (brightness !== 100) filters.push(`brightness(${brightness}%)`);
+    if (contrast !== 100) filters.push(`contrast(${contrast}%)`);
+    if (saturation !== 100) filters.push(`saturate(${saturation}%)`);
+    if (blurVal > 0) filters.push(`blur(${blurVal}px)`);
+
+    if (filterPreset === 'grayscale') filters.push('grayscale(100%)');
+    if (filterPreset === 'sepia') filters.push('sepia(100%)');
+    if (filterPreset === 'invert') filters.push('invert(100%)');
+    if (filterPreset === 'vivid') filters.push('saturate(160%) contrast(110%)');
+
+    const transforms: string[] = [];
+    if (rotate !== 0) transforms.push(`rotate(${rotate}deg)`);
+    if (flipH) transforms.push('scaleX(-1)');
+    if (flipV) transforms.push('scaleY(-1)');
+
+    return {
+      filter: filters.join(' ') || 'none',
+      transform: transforms.join(' ') || 'none',
+      transition: 'all 0.15s ease',
+    };
+  }, [brightness, contrast, saturation, blurVal, filterPreset, rotate, flipH, flipV]);
+
+  // ===== PRESET + DIMENSION HANDLERS =====
+  const selectPreset = (presetKey: string) => {
+    setCurrentPreset(presetKey);
+    setPendingPreset(presetKey);
+    const p = presets[presetKey];
+    if (p) {
+      setWidth(p.w);
+      setHeight(p.h);
+      setScale(Math.round((p.w / (originalDims?.w || originalWidthRef.current)) * 100));
+      showToast(`Applied preset: ${p.name} (${p.w} × ${p.h})`);
+    }
+  };
+
+  const toggleRatio = () => {
+    setMaintainRatio((prev) => !prev);
+  };
+
+  // Keep height in sync when ratio is enabled
+  useEffect(() => {
+    if (maintainRatio && originalDims && originalDims.h > 0) {
+      const ratio = originalDims.w / originalDims.h;
+      setHeight(Math.max(1, Math.round(width / ratio)));
+    }
+  }, [maintainRatio, originalDims, width]);
+
+  const handleWidthChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value || '0', 10);
+    if (isNaN(val)) return;
+
+    const w = Math.max(1, val);
+    setWidth(w);
+
+    const origW = originalDims?.w || originalWidthRef.current;
+    const origH = originalDims?.h || originalHeightRef.current;
+
+    if (maintainRatio && origH) {
+      const ratio = origW / origH;
+      setHeight(Math.max(1, Math.round(w / ratio)));
+    }
+
+    setScale(Math.min(200, Math.max(1, Math.round((w / origW) * 100))));
+    setCurrentPreset(null);
+  };
+
+  const handleHeightChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value || '0', 10);
+    if (isNaN(val)) return;
+
+    const h = Math.max(1, val);
+    setHeight(h);
+
+    const origW = originalDims?.w || originalWidthRef.current;
+    const origH = originalDims?.h || originalHeightRef.current;
+
+    let newWidth = width;
+    if (maintainRatio && origW) {
+      const ratio = origW / origH;
+      newWidth = Math.max(1, Math.round(h * ratio));
+      setWidth(newWidth);
+    }
+
+    setScale(Math.min(200, Math.max(1, Math.round((newWidth / origW) * 100))));
+    setCurrentPreset(null);
+  };
+
+  const handleScaleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value || '100', 10);
+    updateScale(val);
+  };
+
+  const updateScale = (val: number) => {
+    setScale(val);
+    const origW = originalDims?.w || originalWidthRef.current;
+    const origH = originalDims?.h || originalHeightRef.current;
+    setWidth(Math.max(1, Math.round((origW * val) / 100)));
+    setHeight(Math.max(1, Math.round((origH * val) / 100)));
+    setCurrentPreset(null);
+  };
+
+  const resetAllSettings = () => {
+    setWidth(1080);
+    setHeight(1080);
+    setScale(100);
+    setMaintainRatio(true);
+    setFitMode('fit');
+    setFormat('webp');
+    setQuality(82);
+    setAiCrop(false);
+    setRotate(0);
+    setFlipH(false);
+    setFlipV(false);
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setBlurVal(0);
+    setFilterPreset('none');
+    setSharpen(false);
+    setUsePadColor(false);
+    setTargetMaxKb(null);
+    setCurrentPreset('instagram-post');
+    showToast('Settings reset to defaults');
+  };
+
+  const removeFile = (index: number) => {
+    const nextFiles = files.filter((_, i) => i !== index);
+    setFiles(nextFiles);
+    if (selectedIndex >= nextFiles.length) {
+      setSelectedIndex(Math.max(0, nextFiles.length - 1));
+    }
+    setResults([]);
+    setDownloadState('idle');
+    if (nextFiles.length === 0) {
+      backToUpload();
+    }
+  };
+
+  // ===== PROCESSING (Real Sharp engine via backend batch API) =====
+  const processImages = useCallback(async () => {
+    if (downloadState !== 'idle' || files.length === 0) return;
+    setDownloadState('processing');
+    setProcessingError(null);
+    setResults([]);
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append('images', file));
+    formData.append('width', String(width));
+    formData.append('height', String(height));
+    formData.append('format', format === 'jpg' ? 'jpeg' : format);
+    formData.append('quality', String(quality));
+    formData.append('fit', fitMode);
+    formData.append('maintainRatio', String(maintainRatio));
+    if (aiCrop) formData.append('aiCrop', 'true');
+    if (rotate !== 0) formData.append('rotate', String(rotate));
+    if (flipH) formData.append('flop', 'true');
+    if (flipV) formData.append('flip', 'true');
+    if (filterPreset === 'grayscale') formData.append('grayscale', 'true');
+    if (blurVal > 0) formData.append('blur', String(Math.max(0.3, blurVal)));
+    if (sharpen) formData.append('sharpen', 'true');
+    if (usePadColor && padColor) formData.append('background', padColor);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/images/batch?responseType=json`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Image processing failed.');
+      }
+
+      const successful = (data.results || []).filter(
+        (r: ProcessedResult | { error?: string }) => r && !('error' in r)
+      ) as ProcessedResult[];
+
+      if (successful.length === 0) {
+        throw new Error('No images could be processed. Please check the files and try again.');
+      }
+
+      setResults(successful);
+      setDownloadState('done');
+      showToast(`Optimization complete! ${successful.length} image(s) processed.`);
+      // Auto-scroll to preview after processing
+      requestAnimationFrame(() => {
+        afterPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    } catch (err: any) {
+      setProcessingError(err?.message || 'Failed to process images. Is the backend running on port 5000?');
+      setDownloadState('idle');
+      showToast(err?.message || 'Processing error', 'error');
+    }
+  }, [downloadState, files, width, height, format, quality, fitMode, maintainRatio, aiCrop, rotate, flipH, flipV, filterPreset, blurVal, sharpen, usePadColor, padColor, showToast]);
+
+  const downloadSingle = (result: ProcessedResult) => {
+    const ext = result.format || 'webp';
+    const baseName = result.originalName.replace(/\.[^/.]+$/, '');
+    const cleanFilename = `${baseName}${filenameSuffix}.${ext}`;
+    const a = document.createElement('a');
+    a.href = result.dataBase64;
+    a.download = cleanFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast(`Downloaded ${cleanFilename}`);
+  };
+
+  const downloadAllResults = () => {
+    results.forEach(downloadSingle);
+  };
+
+  // Download All as ZIP using JSZip
+  const downloadAllAsZip = async () => {
+    if (results.length === 0) return;
+    try {
+      showToast('Building ZIP archive...', 'info');
+      const zip = new JSZip();
+
+      results.forEach((res, idx) => {
+        const ext = res.format || 'webp';
+        const baseName = res.originalName.replace(/\.[^/.]+$/, '');
+        const filename = `${baseName}${filenameSuffix}${results.length > 1 ? '_' + (idx + 1) : ''}.${ext}`;
+        const base64Data = res.dataBase64.split(',')[1];
+        if (base64Data) {
+          zip.file(filename, base64Data, { base64: true });
+        }
+      });
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `optimized_images_${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      showToast('ZIP archive downloaded successfully!');
+    } catch (err: any) {
+      showToast(`Failed to create ZIP: ${err.message}`, 'error');
+    }
+  };
+
+  // Copy Image to Clipboard
+  const copyImageToClipboard = async (dataBase64: string) => {
+    try {
+      const res = await fetch(dataBase64);
+      const blob = await res.blob();
+      let pngBlob = blob;
+      if (blob.type !== 'image/png') {
+        const img = new Image();
+        img.src = dataBase64;
+        await new Promise((resolve) => { img.onload = resolve; });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+        pngBlob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+      }
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+      showToast('Copied optimized image to clipboard!');
+    } catch {
+      showToast('Could not copy image directly. (Browser permission)', 'error');
+    }
+  };
+
+  // Copy Base64 Data URL
+  const copyDataUrl = (dataBase64: string) => {
+    navigator.clipboard.writeText(dataBase64);
+    showToast('Base64 Data URL copied to clipboard!');
+  };
+
+  // Web Share API with viral share card creation
+  const handleWebShare = async (result: ProcessedResult) => {
+    try {
+      let shareUrl = typeof window !== 'undefined' ? window.location.origin : 'https://resizer.io';
+      try {
+        const token = localStorage.getItem('resizer_user_auth_token');
+        const shareRes = await fetch(`${BACKEND_URL}/api/share/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            imageData: {
+              originalSize: result.originalSizeBytes,
+              outputSize: result.outputSizeBytes,
+              savingsPercent: result.savingsPercent,
+              format: result.format,
+              width: result.width,
+              height: result.height,
+              processingTime: result.processingTimeMs || 120,
+            },
+          }),
+        });
+        const shareData = await shareRes.json();
+        if (shareData.success && shareData.shareId) {
+          shareUrl = `${window.location.origin}/share/${shareData.shareId}`;
+        }
+      } catch (err) {
+        console.warn('Could not register share card:', err);
+      }
+
+      const shareText = `Reduced this image by -${Math.max(0, result.savingsPercent)}% (${formatFileSize(result.outputSizeBytes)}) with Resizer! Check it out:`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Image Optimized with Resizer',
+            text: shareText,
+            url: shareUrl,
+          });
+          showToast('Shared successfully!');
+          return;
+        } catch {
+          // User closed share dialog
+          return;
+        }
+      }
+
+      // Desktop / fallback: copy share URL to clipboard
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('✨ Share link copied to clipboard!');
+    } catch {
+      showToast('Could not share image.', 'error');
+    }
+  };
+
+  const backToUpload = () => {
+    setFiles([]);
+    setSelectedIndex(0);
+    setOriginalDims(null);
+    setCurrentPreset(null);
+    setPendingPreset(null);
+    setResults([]);
+    setProcessingError(null);
+    setWidth(1080);
+    setHeight(1080);
+    setScale(100);
+    setFormat('webp');
+    setQuality(82);
+    setFitMode('fit');
+    setAiCrop(false);
+    setDownloadState('idle');
+    setRotate(0);
+    setFlipH(false);
+    setFlipV(false);
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setBlurVal(0);
+    setFilterPreset('none');
+    setSharpen(false);
+    setUsePadColor(false);
+    setTargetMaxKb(null);
+  };
+
+  // ===== DERIVED VALUES =====
+  const formatSize = (kb: number) => (kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`);
+
+  const previewDisplay = useMemo(() => {
+    const maxDim = Math.max(width, height);
+    const displayW = Math.max(48, Math.round((180 * width) / maxDim));
+    const displayH = Math.max(48, Math.round((180 * height) / maxDim));
+    return { displayW, displayH };
+  }, [width, height]);
+
+  const estimated = useMemo(() => {
+    const origW = originalDims?.w || originalWidthRef.current;
+    const origH = originalDims?.h || originalHeightRef.current;
+    const origPx = origW * origH;
+    const newPx = width * height;
+    const pixelRatio = newPx / origPx;
+
+    const formatMult = format === 'avif' ? 0.45 : format === 'webp' ? 0.65 : format === 'jpg' ? 0.8 : 1.0;
+    const qualityMult = quality / 100;
+    const origSize = 2400;
+
+    const est = Math.round(origSize * pixelRatio * formatMult * qualityMult);
+    const saved = Math.round((1 - est / origSize) * 100);
+
+    return {
+      est,
+      saved,
+      formatted: formatSize(est),
+    };
+  }, [originalDims, width, height, format, quality]);
+
+  const sizePercent = estimated.saved > 0 ? `-${estimated.saved}%` : `+${Math.abs(estimated.saved)}%`;
+  const estimateText = `~${estimated.formatted} (${sizePercent})`;
+
+  // ===== RENDER =====
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      {/* JSON-LD Structured Data for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebApplication',
+            name: 'Resizer.io',
+            url: 'https://resizer.io',
+            description:
+              'Free online image resizer, compressor and converter. Resize, compress and convert images to WebP, AVIF, JPG, PNG — no upload required, 100% private.',
+            applicationCategory: 'MultimediaApplication',
+            operatingSystem: 'Any',
+            browserRequirements: 'Requires JavaScript',
+            offers: {
+              '@type': 'Offer',
+              price: '0',
+              priceCurrency: 'USD',
+            },
+            featureList: [
+              'Batch resize up to 50 images',
+              'Convert to WebP, AVIF, JPG, PNG',
+              'Compress images up to 85%',
+              'No image upload required — runs in browser',
+              'Before/after split-screen comparison',
+              'Social media preset sizes',
+            ],
+          }),
+        }}
+      />
+      {/* ===== HERO SECTION ===== */}
+      {files.length === 0 && (
+        <section className="text-center pt-4 pb-10 sm:pt-8">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold mb-6">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <span>100% Private · Runs Entirely in Your Browser</span>
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] mb-5 bg-gradient-to-r from-primary via-blue-600 to-indigo-600 dark:from-white dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
+            Resize & Convert Images at Lightning Speed
+          </h1>
+
+          <p className="text-base sm:text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
+            Batch-resize up to 50 images, convert to WebP, AVIF, JPG or PNG, and shrink file sizes by up to 85% — without a single byte leaving your device.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
+            <button
+              onClick={() => document.getElementById('resizer-studio')?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-7 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-2"
+            >
+              <span>Start Resizing Free</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </button>
+            <Link
+              href="/tools"
+              className="px-7 py-3.5 bg-surface-elevated dark:bg-zinc-900 border border-border hover:border-accent/50 text-primary dark:text-white font-semibold rounded-2xl transition-colors"
+            >
+              Browse All Tools
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto">
+            {[
+              { value: '50', label: 'Images per batch' },
+              { value: '5', label: 'Output formats' },
+              { value: '0 KB', label: 'Uploaded to cloud' },
+              { value: '~85%', label: 'Max size reduction' },
+            ].map((stat) => (
+              <div key={stat.label} className="p-3.5 bg-surface-elevated dark:bg-zinc-900/60 rounded-2xl border border-border/50">
+                <div className="text-xl sm:text-2xl font-extrabold text-primary dark:text-white">{stat.value}</div>
+                <div className="text-[11px] text-muted mt-0.5">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ===== UPLOAD / EDITOR SECTION ===== */}
+      <div id="resizer-studio" className="scroll-mt-24">
+        {files.length === 0 ? (
+          <div id="uploadState" className="transition-all space-y-5">
+            {/* Pending preset confirmation banner */}
+            {pendingPreset && presets[pendingPreset] && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 animate-in fade-in slide-in-from-top-2">
+                <span className="flex items-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>
+                    {presets[pendingPreset].name} preset applied ({presets[pendingPreset].w} × {presets[pendingPreset].h}) — now drop your image
+                  </span>
+                </span>
+                <button
+                  onClick={() => setPendingPreset(null)}
+                  className="text-muted hover:text-primary transition-colors text-lg leading-none"
+                  aria-label="Dismiss preset"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            <div
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-3xl p-10 sm:p-14 text-center cursor-pointer transition-all duration-300 group ${
+                dragActive
+                  ? 'border-blue-500 bg-blue-500/10 scale-[1.01] shadow-xl shadow-blue-500/15'
+                  : 'border-border hover:border-blue-500/60 hover:bg-surface-elevated/60 dark:hover:bg-zinc-900/60 hover:shadow-lg'
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleFiles}
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture
+                className="hidden"
+                onChange={handleFiles}
+              />
+
+              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 text-blue-600 dark:text-blue-400 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md">
+                <Upload className="w-10 h-10" />
+              </div>
+
+              <h2 className="text-2xl font-bold mb-2 text-primary dark:text-white">Drop your images here</h2>
+              <p className="text-muted text-sm mb-5 max-w-md mx-auto">
+                or click to browse · up to 50 images · paste from clipboard (<kbd className="px-1.5 py-0.5 rounded bg-surface-elevated border border-border text-[10px] font-mono">Ctrl+V</kbd>) · JPG, PNG, WebP, AVIF, HEIC
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  className="px-7 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-semibold shadow-lg shadow-blue-500/25 transition-all hover:scale-105"
+                >
+                  Choose Images
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowUrlModal(true); }}
+                  className="px-4 py-3 rounded-2xl bg-surface-elevated dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-primary dark:text-zinc-200 text-sm font-semibold border border-border flex items-center gap-2 transition-all hover:scale-105"
+                >
+                  <LinkIcon className="w-4 h-4 text-blue-500" />
+                  <span>Import via URL</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}
+                  className="px-4 py-3 rounded-2xl bg-surface-elevated dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-primary dark:text-zinc-200 text-sm font-semibold border border-border flex items-center gap-2 transition-all hover:scale-105"
+                >
+                  <Camera className="w-4 h-4 text-blue-500" />
+                  <span>Camera</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Popular preset sizes pills */}
+            <div className="mt-8">
+              <h3 className="text-base font-semibold mb-3 text-primary dark:text-white">Popular sizes</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {(Object.entries(presets) as [string, PresetItem][]).slice(0, 8).map(([key, p]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => selectPreset(key)}
+                    className={`bg-surface-elevated dark:bg-zinc-900 border rounded-2xl p-4 transition-all text-left hover:shadow-md hover:-translate-y-0.5 ${
+                      pendingPreset === key
+                        ? 'border-blue-500 ring-1 ring-blue-500/40 bg-blue-50/20 dark:bg-blue-500/10'
+                        : 'border-border hover:border-blue-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm text-primary dark:text-white">{p.name}</span>
+                      {p.badge && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-mono">
+                          {p.badge}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted font-mono">{p.w} × {p.h} px</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Benefits strip */}
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                {
+                  title: 'Privacy First',
+                  desc: 'Files never leave your device — zero uploads, zero tracking.',
+                  icon: <Sparkles className="w-5 h-5 text-blue-500" />,
+                },
+                {
+                  title: 'Instant Processing',
+                  desc: 'Native Sharp engine delivers resized results in milliseconds.',
+                  icon: <Zap className="w-5 h-5 text-blue-500" />,
+                },
+                {
+                  title: 'Batch & Modern Formats',
+                  desc: 'WebP, AVIF, JPG, PNG with one-click ZIP archive packaging.',
+                  icon: <FileArchive className="w-5 h-5 text-blue-500" />,
+                },
+              ].map((benefit) => (
+                <div
+                  key={benefit.title}
+                  className="flex items-start gap-3.5 p-5 bg-surface-elevated dark:bg-zinc-900/60 rounded-2xl border border-border/50"
+                >
+                  <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    {benefit.icon}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold mb-1">{benefit.title}</h4>
+                    <p className="text-xs text-muted leading-relaxed">{benefit.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* ========================================================================= */
+          /* ACTIVE STUDIO INTERFACE (QUEUE, PREVIEW & CONTROLS)                       */
+          /* ========================================================================= */
+          <div id="editorState" className="transition-all space-y-6">
+            {/* Editor top bar — navigation & queue controls only */}
+            <div className="flex items-center justify-between flex-wrap gap-3 p-4 rounded-2xl bg-surface-elevated dark:bg-zinc-900 border border-border shadow-sm">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={backToUpload}
+                  className="px-3.5 py-2 rounded-xl border border-border hover:border-primary transition-colors text-xs font-semibold flex items-center gap-1.5"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-muted hover:text-rose-600 transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Clear All</span>
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-primary dark:text-zinc-200 border border-border transition-colors flex items-center gap-1.5"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Add Images</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-mono text-muted">
+                <span>{files.length} image{files.length > 1 ? 's' : ''} loaded</span>
+                {results.length > 0 && (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold font-sans">
+                    · {results.length} optimized ✓
+                  </span>
+                )}
+              </div>
+
+              {results.length > 0 && (
+                <button
+                  onClick={downloadAllAsZip}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all hover:scale-105 flex items-center gap-1.5"
+                  title="Download all processed images inside a .zip file"
+                >
+                  <FileArchive className="w-4 h-4" />
+                  <span>Download ZIP</span>
+                </button>
+              )}
+            </div>
+
+            {/* Processing error banner */}
+            {processingError && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <span className="flex-1">{processingError}</span>
+                <button
+                  onClick={() => setProcessingError(null)}
+                  className="text-muted hover:text-primary transition-colors text-lg leading-none"
+                  aria-label="Dismiss error"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {/* Queue Carousel */}
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-thin">
+              {files.map((file, idx) => {
+                const isSelected = idx === selectedIndex;
+                const result = results[idx];
+                return (
+                  <div
+                    key={`${file.name}-${idx}`}
+                    onClick={() => setSelectedIndex(idx)}
+                    className={`relative shrink-0 w-28 rounded-2xl overflow-hidden cursor-pointer border-2 transition-all group ${
+                      isSelected
+                        ? 'border-blue-600 ring-2 ring-blue-500/30 scale-105 shadow-md'
+                        : 'border-border hover:border-slate-400 bg-surface dark:bg-zinc-900'
+                    }`}
+                  >
+                    <div className="h-16 w-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
+                      <FileImage file={file} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="p-1.5 bg-surface-elevated dark:bg-zinc-900 text-[10px]">
+                      <p className="truncate font-medium text-primary dark:text-zinc-200">{file.name}</p>
+                      <div className="flex items-center justify-between text-muted">
+                        <span>{formatFileSize(file.size)}</span>
+                        {result && (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                            -{Math.max(0, result.savingsPercent)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(idx);
+                      }}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-rose-600 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* MAIN TWO-COLUMN STUDIO AREA */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start" ref={afterPreviewRef}>
+              {/* ===================================================================== */}
+              {/* LEFT: INTERACTIVE BEFORE / AFTER PREVIEW CANVAS                       */}
+              {/* ===================================================================== */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-surface-elevated dark:bg-zinc-900/90 rounded-3xl p-5 border border-border shadow-xl space-y-4">
+                  {/* Canvas Toolbar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-primary dark:text-zinc-200 flex items-center gap-1.5">
+                        <Eye className="w-4 h-4 text-blue-500" />
+                        <span>Split Comparison</span>
+                      </span>
+                      {results[selectedIndex] && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold font-mono">
+                          -{Math.max(0, results[selectedIndex].savingsPercent)}% ({formatFileSize(results[selectedIndex].outputSizeBytes)})
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {results[selectedIndex] && (
+                        <div className="flex items-center bg-surface dark:bg-zinc-800 p-0.5 rounded-xl text-[11px] font-semibold border border-border">
+                          <button
+                            onClick={() => setCompareMode('split')}
+                            className={`px-2.5 py-1 rounded-lg transition-all ${
+                              compareMode === 'split' ? 'bg-primary text-white dark:bg-white dark:text-primary shadow-sm' : 'text-muted'
+                            }`}
+                          >
+                            Split Slider
+                          </button>
+                          <button
+                            onClick={() => setCompareMode('result')}
+                            className={`px-2.5 py-1 rounded-lg transition-all ${
+                              compareMode === 'result' ? 'bg-primary text-white dark:bg-white dark:text-primary shadow-sm' : 'text-muted'
+                            }`}
+                          >
+                            Result Only
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Zoom Controls */}
+                      <div className="flex items-center gap-1 bg-surface dark:bg-zinc-800 p-0.5 rounded-xl border border-border">
+                        <button
+                          onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.25))}
+                          className="p-1 hover:text-blue-500 text-muted"
+                          title="Zoom Out"
+                        >
+                          <ZoomOut className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-[10px] font-mono px-1">{Math.round(zoomLevel * 100)}%</span>
+                        <button
+                          onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
+                          className="p-1 hover:text-blue-500 text-muted"
+                          title="Zoom In"
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Interactive Canvas Container */}
+                  <div
+                    ref={splitContainerRef}
+                    onMouseMove={handleSplitMouseMove}
+                    onMouseUp={() => setIsDraggingSplit(false)}
+                    onTouchMove={handleSplitTouchMove}
+                    className="relative w-full h-[360px] sm:h-[420px] rounded-2xl overflow-hidden bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:16px_16px] bg-surface dark:bg-zinc-950 flex items-center justify-center select-none"
+                    style={{ backgroundColor: usePadColor ? padColor : undefined }}
+                  >
+                    <div
+                      className="w-full h-full flex items-center justify-center p-4 transition-transform duration-150"
+                      style={{ transform: `scale(${zoomLevel})` }}
+                    >
+                      {files[selectedIndex] ? (
+                        <div className="relative max-w-full max-h-full flex items-center justify-center">
+                          {/* Original Base Image */}
+                          <div style={livePreviewFilterStyle}>
+                            <FileImage
+                              file={files[selectedIndex]}
+                              className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
+                            />
+                          </div>
+
+                          {/* Clipped Optimized Result Overlay */}
+                          {results[selectedIndex] && compareMode === 'split' && (
+                            <div
+                              className="absolute inset-0 overflow-hidden flex items-center justify-center"
+                              style={{ clipPath: `inset(0 0 0 ${splitPos}%)` }}
+                            >
+                              <img
+                                src={results[selectedIndex].dataBase64}
+                                alt="Optimized Image"
+                                className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
+                              />
+                            </div>
+                          )}
+
+                          {/* Result Only View */}
+                          {results[selectedIndex] && compareMode === 'result' && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <img
+                                src={results[selectedIndex].dataBase64}
+                                alt="Optimized Image"
+                                className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center text-muted">No Image Selected</div>
+                      )}
+                    </div>
+
+                    {/* Split Divider Handle */}
+                    {results[selectedIndex] && compareMode === 'split' && (
+                      <div
+                        onMouseDown={() => setIsDraggingSplit(true)}
+                        className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize shadow-2xl z-20"
+                        style={{ left: `${splitPos}%` }}
+                      >
+                        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white text-slate-800 shadow-xl flex items-center justify-center text-xs font-bold border border-slate-200">
+                          ↔
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Badges for Comparison */}
+                    <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md text-white text-[10px] font-bold shadow">
+                      Original: {originalDims ? `${originalDims.w}×${originalDims.h}` : ''} ({formatFileSize(files[selectedIndex]?.size || 0)})
+                    </div>
+
+                    {results[selectedIndex] && (
+                      <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-emerald-600/90 backdrop-blur-md text-white text-[10px] font-bold shadow">
+                        Optimized: {results[selectedIndex].width}×{results[selectedIndex].height} ({formatFileSize(results[selectedIndex].outputSizeBytes)})
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Rotation & Flip Toolbar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleRotateCcw}
+                        className="p-2 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-surface-elevated text-muted hover:text-primary transition-colors border border-border"
+                        title="Rotate Counter-Clockwise"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleRotateCw}
+                        className="p-2 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-surface-elevated text-muted hover:text-primary transition-colors border border-border"
+                        title="Rotate Clockwise"
+                      >
+                        <RotateCw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleFlipH}
+                        className={`p-2 rounded-xl border transition-colors ${
+                          flipH ? 'bg-blue-600 text-white border-blue-600' : 'bg-surface dark:bg-zinc-800 text-muted hover:text-primary border-border'
+                        }`}
+                        title="Flip Horizontal"
+                      >
+                        <FlipHorizontal className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleFlipV}
+                        className={`p-2 rounded-xl border transition-colors ${
+                          flipV ? 'bg-blue-600 text-white border-blue-600' : 'bg-surface dark:bg-zinc-800 text-muted hover:text-primary border-border'
+                        }`}
+                        title="Flip Vertical"
+                      >
+                        <FlipVertical className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Per-image result actions */}
+                    {results[selectedIndex] && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyImageToClipboard(results[selectedIndex].dataBase64)}
+                          className="p-2 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-surface-elevated text-muted hover:text-primary transition-colors border border-border"
+                          title="Copy image to clipboard"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleWebShare(results[selectedIndex])}
+                          className="p-2 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-surface-elevated text-muted hover:text-primary transition-colors border border-border"
+                          title="Share"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => downloadSingle(results[selectedIndex])}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all hover:scale-105"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ===== BIG PROCESS BUTTON — at the bottom of the preview panel ===== */}
+                  <button
+                    id="process-image-btn"
+                    onClick={processImages}
+                    disabled={downloadState === 'processing'}
+                    className="w-full mt-3 px-6 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-blue-800 disabled:to-indigo-800 text-white font-extrabold text-base shadow-xl shadow-blue-500/30 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {downloadState === 'processing' ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>Optimizing {files.length} image{files.length > 1 ? 's' : ''}…</span>
+                      </>
+                    ) : downloadState === 'done' ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>Re-Process {files.length > 1 ? `All ${files.length} Images` : 'Image'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-5 h-5" />
+                        <span>Process &amp; Optimize {files.length > 1 ? `${files.length} Images` : 'Image'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* ===================================================================== */}
+              {/* RIGHT: SETTINGS, RESIZE PRESETS, FILTERS & EXPORT TABBED PANEL        */}
+              {/* ===================================================================== */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="bg-surface-elevated dark:bg-zinc-900/90 rounded-3xl border border-border shadow-xl overflow-hidden">
+
+                  {/* Tab Navigation — icon + short label, never wraps */}
+                  <div className="flex bg-surface dark:bg-zinc-800/80 border-b border-border">
+                    {[
+                      { id: 'presets', short: 'Size', icon: '⊞' },
+                      { id: 'filters', short: 'Filters', icon: '✦' },
+                      { id: 'export',  short: 'Export',  icon: '⚡' },
+                    ].map((tab) => {
+                      const isCurrent = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id as any)}
+                          className={`flex-1 py-3 text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 whitespace-nowrap ${
+                            isCurrent
+                              ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white/50 dark:bg-zinc-900/60'
+                              : 'border-transparent text-muted hover:text-primary hover:bg-white/30 dark:hover:bg-zinc-700/30'
+                          }`}
+                        >
+                          <span className="text-base leading-none">{tab.icon}</span>
+                          <span>{tab.short}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="p-5 space-y-5">
+
+                  {/* TAB 1: PRESETS & DIMENSIONS */}
+                  {activeTab === 'presets' && (
+                    <div className="space-y-4">
+
+                      {/* Preset category pills */}
+                      <div className="flex gap-1.5 p-1 bg-surface dark:bg-zinc-800 rounded-2xl border border-border">
+                        {(['social', 'ecommerce', 'devices'] as const).map((cat) => {
+                          const icons = { social: '📱', ecommerce: '🛒', devices: '🖥️' };
+                          return (
+                            <button
+                              key={cat}
+                              onClick={() => setPresetCategory(cat)}
+                              className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold capitalize transition-all flex items-center justify-center gap-1 ${
+                                presetCategory === cat
+                                  ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                                  : 'text-muted hover:text-primary'
+                              }`}
+                            >
+                              <span>{icons[cat]}</span>
+                              <span>{cat}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Preset Grid — taller cards, cleaner layout */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {(Object.entries(presets) as [string, PresetItem][])
+                          .filter(([_, p]) => p.category === presetCategory)
+                          .map(([key, p]) => {
+                            const isActive = currentPreset === key;
+                            return (
+                              <button
+                                key={key}
+                                onClick={() => selectPreset(key)}
+                                className={`group relative p-3 rounded-2xl text-left border-2 transition-all duration-200 ${
+                                  isActive
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 shadow-md shadow-blue-500/10'
+                                    : 'border-border bg-surface dark:bg-zinc-950 hover:border-blue-400/60 hover:shadow-sm hover:-translate-y-0.5'
+                                }`}
+                              >
+                                {isActive && (
+                                  <span className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold">✓</span>
+                                )}
+                                <div className={`text-xs font-bold leading-tight mb-1 pr-4 ${isActive ? 'text-blue-700 dark:text-blue-300' : 'text-primary dark:text-white'}`}>
+                                  {p.name}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-mono text-muted">{p.w}×{p.h}</span>
+                                  {p.badge && (
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold font-mono ${
+                                      isActive ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' : 'bg-surface-elevated dark:bg-zinc-800 text-muted'
+                                    }`}>
+                                      {p.badge}
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                      </div>
+
+                      {/* Divider */}
+                      <div className="border-t border-dashed border-border/60" />
+
+                      {/* Custom Dimensions — side by side with lock icon between */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Custom Size</span>
+                          <button
+                            onClick={() => setMaintainRatio((r) => !r)}
+                            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition-all ${
+                              maintainRatio
+                                ? 'border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10'
+                                : 'border-border text-muted hover:text-primary'
+                            }`}
+                            title="Toggle aspect ratio lock"
+                          >
+                            {maintainRatio ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                            <span>{maintainRatio ? 'Ratio Locked' : 'Free'}</span>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-muted mb-1.5">WIDTH (px)</label>
+                            <input
+                              type="number"
+                              value={width}
+                              onChange={handleWidthChange}
+                              min={1}
+                              className="w-full bg-surface dark:bg-zinc-950 border border-border rounded-xl px-3 py-2.5 text-sm font-mono font-bold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 text-primary dark:text-white transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-muted mb-1.5">HEIGHT (px)</label>
+                            <input
+                              type="number"
+                              value={height}
+                              onChange={handleHeightChange}
+                              min={1}
+                              className="w-full bg-surface dark:bg-zinc-950 border border-border rounded-xl px-3 py-2.5 text-sm font-mono font-bold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 text-primary dark:text-white transition-all"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Scale Slider */}
+                      <div className="space-y-2 p-3 rounded-2xl bg-surface dark:bg-zinc-950 border border-border">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-semibold text-muted">Scale</span>
+                          <span className={`text-sm font-extrabold font-mono ${scale < 100 ? 'text-rose-500' : scale > 100 ? 'text-emerald-500' : 'text-blue-600 dark:text-blue-400'}`}>
+                            {scale}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={10}
+                          max={200}
+                          value={scale}
+                          onChange={handleScaleChange}
+                          className="w-full accent-blue-600 h-1.5"
+                        />
+                        <div className="flex justify-between text-[9px] text-muted">
+                          <span>10%</span><span>100%</span><span>200%</span>
+                        </div>
+                      </div>
+
+                      {/* Fit Mode */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Fit Mode</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: 'fit',     label: 'Contain', desc: 'Keeps ratio', emoji: '⬜' },
+                            { id: 'fill',    label: 'Cover',   desc: 'Smart crop',  emoji: '⬛' },
+                            { id: 'stretch', label: 'Stretch', desc: 'Exact dims',  emoji: '↔' },
+                          ].map((m) => (
+                            <button
+                              key={m.id}
+                              onClick={() => setFitMode(m.id as any)}
+                              className={`p-2.5 rounded-xl text-center border-2 transition-all ${
+                                fitMode === m.id
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
+                                  : 'bg-surface dark:bg-zinc-950 border-border text-muted hover:border-blue-400 hover:text-primary'
+                              }`}
+                            >
+                              <div className="text-base mb-0.5">{m.emoji}</div>
+                              <div className="text-[11px] font-bold">{m.label}</div>
+                              <div className="text-[9px] opacity-70">{m.desc}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 2: FILTERS & COLOR ADJUSTMENTS */}
+                  {activeTab === 'filters' && (
+                    <div className="space-y-5">
+
+                      {/* Filter Presets */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Style Preset</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[
+                            { id: 'none',      label: 'Normal',  emoji: '🌈' },
+                            { id: 'grayscale', label: 'B&W',     emoji: '⬜' },
+                            { id: 'sepia',     label: 'Sepia',   emoji: '🟤' },
+                            { id: 'vivid',     label: 'Vivid',   emoji: '⚡' },
+                            { id: 'invert',    label: 'Invert',  emoji: '🔁' },
+                          ].map((f) => (
+                            <button
+                              key={f.id}
+                              onClick={() => setFilterPreset(f.id as any)}
+                              className={`py-2 px-1 rounded-xl text-center border-2 transition-all ${
+                                filterPreset === f.id
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                                  : 'bg-surface dark:bg-zinc-950 border-border text-muted hover:border-blue-400 hover:text-primary'
+                              }`}
+                            >
+                              <div className="text-base mb-0.5">{f.emoji}</div>
+                              <div className="text-[9px] font-bold leading-tight">{f.label}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Adjustment Sliders */}
+                      {[
+                        { label: 'Brightness', value: brightness, set: setBrightness, min: 50, max: 150, neutral: 100, color: 'text-yellow-500' },
+                        { label: 'Contrast',   value: contrast,   set: setContrast,   min: 50, max: 150, neutral: 100, color: 'text-blue-500' },
+                        { label: 'Saturation', value: saturation, set: setSaturation, min: 0,  max: 200, neutral: 100, color: 'text-pink-500' },
+                        { label: 'Blur',       value: blurVal * 10, set: (v: number) => setBlurVal(v / 10), min: 0, max: 100, neutral: 0, color: 'text-indigo-500' },
+                      ].map((s) => (
+                        <div key={s.label} className="space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className={`text-xs font-semibold ${s.color}`}>{s.label}</span>
+                            <span className="text-xs font-mono font-bold text-primary dark:text-white">
+                              {s.label === 'Blur' ? `${(s.value / 10).toFixed(1)}px` : `${s.value}%`}
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="range"
+                              min={s.min}
+                              max={s.max}
+                              value={s.value}
+                              onChange={(e) => s.set(Number(e.target.value))}
+                              className="w-full accent-blue-600"
+                            />
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Sharpen Toggle & Pad Color */}
+                      <div className="space-y-3 p-3 rounded-2xl bg-surface dark:bg-zinc-950 border border-border">
+                        <label className="flex items-center justify-between cursor-pointer group">
+                          <span className="text-xs font-semibold text-primary dark:text-zinc-200 group-hover:text-blue-600 transition-colors">
+                            🔪 Sharpen Filter
+                          </span>
+                          <button
+                            onClick={() => setSharpen(v => !v)}
+                            className={`relative w-10 h-5 rounded-full transition-colors ${sharpen ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                          >
+                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${sharpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                          </button>
+                        </label>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-primary dark:text-zinc-200">🎨 Background Color</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={padColor}
+                              onChange={(e) => { setPadColor(e.target.value); setUsePadColor(true); }}
+                              className="w-7 h-7 rounded-lg cursor-pointer border border-border bg-transparent"
+                            />
+                            <button
+                              onClick={() => setUsePadColor((p) => !p)}
+                              className={`text-[10px] px-2.5 py-1 rounded-lg font-bold transition-all ${
+                                usePadColor ? 'bg-blue-600 text-white' : 'bg-surface-elevated dark:bg-zinc-800 text-muted hover:text-primary'
+                              }`}
+                            >
+                              {usePadColor ? '✓ ON' : 'OFF'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: FORMAT, QUALITY & TARGET SIZE */}
+                  {activeTab === 'export' && (
+                    <div className="space-y-5">
+
+                      {/* Format Cards */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Output Format</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'webp', name: 'WebP',  desc: 'Best compression',   savings: '-35%', badge: '🏆' },
+                            { id: 'avif', name: 'AVIF',  desc: 'Next-gen format',    savings: '-50%', badge: '🚀' },
+                            { id: 'jpg',  name: 'JPG',   desc: 'Universal compat.',  savings: '-20%', badge: '📷' },
+                            { id: 'png',  name: 'PNG',   desc: 'Lossless quality',   savings: '0%',   badge: '🖼' },
+                          ].map((fmt) => (
+                            <button
+                              key={fmt.id}
+                              onClick={() => setFormat(fmt.id)}
+                              className={`p-3 rounded-2xl text-left border-2 transition-all ${
+                                format === fmt.id
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25'
+                                  : 'bg-surface dark:bg-zinc-950 border-border hover:border-blue-400/60 hover:-translate-y-0.5 hover:shadow-sm'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-extrabold">{fmt.name}</span>
+                                <span className="text-base">{fmt.badge}</span>
+                              </div>
+                              <div className={`text-[10px] leading-tight ${format === fmt.id ? 'text-blue-100' : 'text-muted'}`}>{fmt.desc}</div>
+                              <div className={`text-[11px] font-bold font-mono mt-1 ${format === fmt.id ? 'text-blue-200' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmt.savings}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Quality Slider */}
+                      <div className="p-3 rounded-2xl bg-surface dark:bg-zinc-950 border border-border space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-semibold text-muted">Quality</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-extrabold font-mono ${
+                              quality >= 90 ? 'text-emerald-500' : quality >= 70 ? 'text-blue-500' : quality >= 50 ? 'text-yellow-500' : 'text-rose-500'
+                            }`}>{quality}%</span>
+                            <span className="text-[10px] text-muted px-1.5 py-0.5 rounded-md bg-surface-elevated dark:bg-zinc-800 font-medium">
+                              {quality >= 90 ? 'Best' : quality >= 70 ? 'Good' : quality >= 50 ? 'Fair' : 'Low'}
+                            </span>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={20}
+                          max={100}
+                          value={quality}
+                          onChange={(e) => { setQuality(Number(e.target.value)); setTargetMaxKb(null); }}
+                          className="w-full accent-blue-600"
+                        />
+                        <div className="flex justify-between text-[9px] text-muted">
+                          <span>20% Tiny</span><span>82% Balanced</span><span>100% Max</span>
+                        </div>
+                      </div>
+
+                      {/* Target Size Quick Presets */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Target Max File Size</label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[100, 250, 500, 1024].map((kb) => (
+                            <button
+                              key={kb}
+                              onClick={() => handleTargetSize(kb)}
+                              className={`py-2 rounded-xl text-[11px] font-bold border-2 transition-all ${
+                                targetMaxKb === kb
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                                  : 'bg-surface dark:bg-zinc-950 border-border text-muted hover:border-emerald-400 hover:text-emerald-600'
+                              }`}
+                            >
+                              {kb >= 1024 ? '1 MB' : `${kb}K`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Filename Suffix */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-1.5">Filename Suffix</label>
+                        <input
+                          type="text"
+                          value={filenameSuffix}
+                          onChange={(e) => setFilenameSuffix(e.target.value)}
+                          placeholder="_optimized"
+                          className="w-full bg-surface dark:bg-zinc-950 border border-border rounded-xl px-3 py-2.5 text-xs font-mono font-bold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 text-primary dark:text-white transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer: Reset + Output Summary */}
+                  <div className="pt-3 mt-2 border-t border-border flex justify-between items-center">
+                    <button
+                      onClick={resetAllSettings}
+                      className="text-[11px] text-muted hover:text-rose-500 flex items-center gap-1.5 transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Reset Defaults</span>
+                    </button>
+                    <div className="text-right">
+                      <span className="text-[10px] text-muted font-mono block">
+                        {format.toUpperCase()} · {width}×{height}
+                      </span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{estimateText}</span>
+                    </div>
+                  </div>
+
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Detailed File Queue Grid */}
+            <div className="bg-surface-elevated dark:bg-zinc-900 rounded-3xl p-6 border border-border">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-base">Image Queue ({files.length})</h3>
+                  <p className="text-xs text-muted">
+                    Click any thumbnail to preview and compare. Process individual files or batch download all as a ZIP.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {files.map((file, index) => {
+                  const result = results.find((r) => r.originalName === file.name);
+                  return (
+                    <FileThumb
+                      key={`${file.name}-${index}`}
+                      file={file}
+                      isSelected={index === selectedIndex}
+                      onSelect={() => setSelectedIndex(index)}
+                      onRemove={() => removeFile(index)}
+                      result={result}
+                      isProcessing={downloadState === 'processing'}
+                      onDownload={result ? () => downloadSingle(result) : undefined}
+                      onCopy={result ? () => copyImageToClipboard(result.dataBase64) : undefined}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* URL Import Modal */}
+        {showUrlModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-surface-elevated dark:bg-zinc-900 border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-primary dark:text-white flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4 text-blue-500" />
+                  <span>Import Image via URL</span>
+                </h3>
+                <button
+                  onClick={() => setShowUrlModal(false)}
+                  className="w-7 h-7 rounded-full bg-surface dark:bg-zinc-800 text-muted hover:text-primary flex items-center justify-center text-sm"
+                >
+                  ×
+                </button>
+              </div>
+
+              <p className="text-xs text-muted">
+                Paste any publicly accessible image link (Unsplash, Wikipedia, CDN, etc.):
+              </p>
+
+              <input
+                type="url"
+                placeholder="https://images.unsplash.com/photo-..."
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                className="w-full bg-surface dark:bg-zinc-950 border border-border rounded-xl px-3 py-2.5 text-xs text-primary dark:text-white focus:outline-none focus:border-blue-500"
+              />
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowUrlModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:text-primary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImportUrl}
+                  disabled={urlLoading || !urlInput.trim()}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all"
+                >
+                  {urlLoading ? 'Fetching...' : 'Import Image'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Global Toast Notification */}
+        {toast && (
+          <div
+            className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl text-xs sm:text-sm font-semibold border backdrop-blur-xl animate-in slide-in-from-bottom-4 duration-200 ${
+              toast.type === 'success'
+                ? 'bg-surface-elevated/95 dark:bg-zinc-900/95 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-emerald-500/10'
+                : toast.type === 'error'
+                ? 'bg-surface-elevated/95 dark:bg-zinc-900/95 border-rose-500/30 text-rose-600 dark:text-rose-400 shadow-rose-500/10'
+                : 'bg-surface-elevated/95 dark:bg-zinc-900/95 border-blue-500/30 text-blue-600 dark:text-blue-400 shadow-blue-500/10'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            <span>{toast.msg}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
