@@ -17,6 +17,12 @@ const pool = mysql.createPool({
   user: process.env.DB_USER || 'admin',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'nextjs_app',
+  ...(process.env.DB_SSL === 'true' && {
+    ssl: {
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized: true,
+    },
+  }),
   waitForConnections: true,
   connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 10,
   queueLimit: 0,
