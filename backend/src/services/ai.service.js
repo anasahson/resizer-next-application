@@ -13,14 +13,14 @@ async function getAISettings() {
 
   return {
     // AI Credentials & Models
-    openaiApiKey: settingsMap['openai_api_key'] ? maskKey(settingsMap['openai_api_key']) : '',
-    hasOpenaiKey: !!settingsMap['openai_api_key'],
+    openaiApiKey: (settingsMap['openai_api_key'] || process.env.OPENAI_API_KEY) ? maskKey(settingsMap['openai_api_key'] || process.env.OPENAI_API_KEY) : '',
+    hasOpenaiKey: !!(settingsMap['openai_api_key'] || process.env.OPENAI_API_KEY),
     geminiApiKey: (settingsMap['gemini_api_key'] || process.env.GEMINI_API_KEY) ? maskKey(settingsMap['gemini_api_key'] || process.env.GEMINI_API_KEY) : '',
     hasGeminiKey: !!(settingsMap['gemini_api_key'] || process.env.GEMINI_API_KEY),
     hasVeniceKey: !!(process.env.VENICE_API_KEY || settingsMap['venice_api_key']),
     veniceBaseUrl: process.env.VENICE_BASE_URL || 'https://api.venice.ai/api/v1',
     activeProvider: settingsMap['ai_active_provider'] || 'auto',
-    openaiModel: settingsMap['openai_model'] || 'gpt-4o-mini',
+    openaiModel: settingsMap['openai_model'] || process.env.OPENAI_MODEL || 'gpt-4.1',
     geminiModel: settingsMap['gemini_model'] || 'gemini-1.5-flash',
 
     // Platform & Brand Settings
@@ -46,6 +46,7 @@ async function getRawAISettings() {
   });
   if (!map.gemini_api_key && process.env.GEMINI_API_KEY) map.gemini_api_key = process.env.GEMINI_API_KEY;
   if (!map.venice_api_key && process.env.VENICE_API_KEY) map.venice_api_key = process.env.VENICE_API_KEY;
+  if (!map.openai_api_key && process.env.OPENAI_API_KEY) map.openai_api_key = process.env.OPENAI_API_KEY;
   return map;
 }
 
@@ -168,7 +169,7 @@ async function testAIConnection({ provider, apiKey, model }) {
     }
   } else {
     try {
-      const selectedModel = model || rawSettings['openai_model'] || 'gpt-4o-mini';
+      const selectedModel = model || rawSettings['openai_model'] || process.env.OPENAI_MODEL || 'gpt-4.1';
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -376,7 +377,7 @@ Return ONLY valid JSON matching this exact structure:
   // 2. Try OpenAI if configured
   if ((activeProvider === 'openai' || (activeProvider === 'auto' && openaiKey)) && openaiKey) {
     try {
-      const selectedModel = rawSettings['openai_model'] || 'gpt-4.1';
+      const selectedModel = rawSettings['openai_model'] || process.env.OPENAI_MODEL || 'gpt-4.1';
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -438,17 +439,21 @@ Return ONLY valid JSON matching this exact structure:
 async function generateImageWithAI({ prompt, style = 'modern', tags = [], category = 'Engineering' }) {
   const veniceKey = process.env.VENICE_API_KEY;
   if (veniceKey) {
-    const response = await fetch(`${process.env.VENICE_BASE_URL || 'https://api.venice.ai/api/v1'}/images/generations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${veniceKey}` },
-      body: JSON.stringify({ prompt, model: process.env.VENICE_IMAGE_MODEL || 'fluently-xl', n: 1, size: '1024x576', response_format: 'url' }),
-    });
-    const data = await response.json();
-    const image = data.data?.[0];
-    if (response.ok && (image?.url || image?.b64_json)) {
-      return { success: true, prompt, imageUri: image.url || `data:image/png;base64,${image.b64_json}`, format: image.url ? 'url' : 'png', aspectRatio: '16:9' };
+    try {
+      const response = await fetch(`${process.env.VENICE_BASE_URL || 'https://api.venice.ai/api/v1'}/images/generations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${veniceKey}` },
+        body: JSON.stringify({ prompt, model: process.env.VENICE_IMAGE_MODEL || 'fluently-xl', n: 1, size: '1024x576', response_format: 'url' }),
+      });
+      const data = await response.json();
+      const image = data.data?.[0];
+      if (response.ok && (image?.url || image?.b64_json)) {
+        return { success: true, prompt, imageUri: image.url || `data:image/png;base64,${image.b64_json}`, format: image.url ? 'url' : 'png', aspectRatio: '16:9' };
+      }
+      console.warn('[Venice] Image generation unavailable; using the built-in banner:', data.error?.message || `HTTP ${response.status}`);
+    } catch (error) {
+      console.warn('[Venice] Image generation request failed; using the built-in banner:', error.message);
     }
-    throw new Error(data.error?.message || 'Venice image generation failed.');
   }
   const cleanTitle = (prompt || 'Next-Gen Image Processing').trim();
 
