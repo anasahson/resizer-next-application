@@ -15,8 +15,10 @@ async function getAISettings() {
     // AI Credentials & Models
     openaiApiKey: settingsMap['openai_api_key'] ? maskKey(settingsMap['openai_api_key']) : '',
     hasOpenaiKey: !!settingsMap['openai_api_key'],
-    geminiApiKey: settingsMap['gemini_api_key'] ? maskKey(settingsMap['gemini_api_key']) : '',
-    hasGeminiKey: !!settingsMap['gemini_api_key'],
+    geminiApiKey: (settingsMap['gemini_api_key'] || process.env.GEMINI_API_KEY) ? maskKey(settingsMap['gemini_api_key'] || process.env.GEMINI_API_KEY) : '',
+    hasGeminiKey: !!(settingsMap['gemini_api_key'] || process.env.GEMINI_API_KEY),
+    hasVeniceKey: !!(process.env.VENICE_API_KEY || settingsMap['venice_api_key']),
+    veniceBaseUrl: process.env.VENICE_BASE_URL || 'https://api.venice.ai/api/v1',
     activeProvider: settingsMap['ai_active_provider'] || 'auto',
     openaiModel: settingsMap['openai_model'] || 'gpt-4o-mini',
     geminiModel: settingsMap['gemini_model'] || 'gemini-1.5-flash',
@@ -42,6 +44,8 @@ async function getRawAISettings() {
   rows.forEach((r) => {
     map[r.setting_key] = r.setting_value;
   });
+  if (!map.gemini_api_key && process.env.GEMINI_API_KEY) map.gemini_api_key = process.env.GEMINI_API_KEY;
+  if (!map.venice_api_key && process.env.VENICE_API_KEY) map.venice_api_key = process.env.VENICE_API_KEY;
   return map;
 }
 
@@ -103,6 +107,8 @@ async function testAIConnection({ provider, apiKey, model }) {
     ? apiKey
     : targetProvider === 'gemini'
     ? rawSettings['gemini_api_key']
+    : targetProvider === 'venice'
+    ? process.env.VENICE_API_KEY || rawSettings['venice_api_key']
     : rawSettings['openai_api_key'];
 
   if (!effectiveKey) {
@@ -110,6 +116,26 @@ async function testAIConnection({ provider, apiKey, model }) {
       success: false,
       message: `No API key provided for ${targetProvider.toUpperCase()}. Please enter an API key first.`,
     };
+  }
+
+  if (targetProvider === 'venice') {
+    try {
+      const response = await fetch(`${process.env.VENICE_BASE_URL || 'https://api.venice.ai/api/v1'}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${effectiveKey}` },
+        body: JSON.stringify({
+          model: model || 'llama-3.3-70b',
+          messages: [{ role: 'user', content: 'Respond with: "Venice connection successful!"' }],
+          max_tokens: 20,
+        }),
+      });
+      const data = await response.json();
+      return response.ok && data.choices?.[0]
+        ? { success: true, message: 'Connected successfully to Venice AI!', provider: 'venice' }
+        : { success: false, message: data.error?.message || 'Venice API key validation failed.' };
+    } catch (err) {
+      return { success: false, message: `Venice test error: ${err.message}` };
+    }
   }
 
   if (targetProvider === 'gemini') {
@@ -183,6 +209,7 @@ async function generatePostWithAI({ prompt, category = 'Engineering', tone = 'te
   const activeProvider = customProvider || rawSettings['ai_active_provider'] || 'auto';
   const openaiKey = rawSettings['openai_api_key'];
   const geminiKey = rawSettings['gemini_api_key'];
+  const veniceKey = process.env.VENICE_API_KEY || rawSettings['venice_api_key'];
 
   const systemInstruction = `You are a world-class Web Media & Performance Technical Writer and SEO Specialist. 
 Generate a comprehensive, engaging, highly informative, and SEO-optimized article about the user's exact topic: "${prompt}".
@@ -257,7 +284,40 @@ Return ONLY valid JSON matching this exact structure:
     };
   };
 
-  // 1. Try Google Gemini if configured
+  // 1. Try Venice if configured
+  if ((activeProvider === 'venice' || (activeProvider === 'auto' && veniceKey)) && veniceKey) {
+    try {
+      const selectedModel = rawSettings['venice_model'] || 'llama-3.3-70b';
+      const response = await fetch(`${process.env.VENICE_BASE_URL || 'https://api.venice.ai/api/v1'}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${veniceKey}` },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: `Generate blog post for topic: "${prompt}". Return only valid JSON.` },
+          ],
+          temperature: 0.7,
+          max_tokens: 6144,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'Venice API error');
+      const rawText = data.choices?.[0]?.message?.content?.trim();
+      if (!rawText) throw new Error('Venice returned an empty response.');
+      const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = normalizeGeneratedPost(JSON.parse(cleaned));
+      parsed.generatedBy = `Venice AI (${selectedModel})`;
+      const imgResult = await generateImageWithAI({ prompt: parsed.imagePrompt || parsed.title || prompt, tags: parsed.tags || [], category: parsed.category || category });
+      parsed.featuredImage = imgResult.imageUri;
+      return parsed;
+    } catch (err) {
+      console.warn('[Venice] Generation failed:', err.message);
+      if (activeProvider === 'venice') throw err;
+    }
+  }
+
+  // 2. Try Google Gemini if configured
   if ((activeProvider === 'gemini' || (activeProvider === 'auto' && geminiKey)) && geminiKey) {
     try {
       const selectedModel = rawSettings['gemini_model'] || 'gemini-3.7-flash';
@@ -298,7 +358,7 @@ Return ONLY valid JSON matching this exact structure:
         const parsed = normalizeGeneratedPost(JSON.parse(cleaned));
         parsed.generatedBy = `Google Gemini (${selectedModel})`;
         // Auto-generate a matching topic-aware banner
-        const imgResult = generateImageWithAI({
+        const imgResult = await generateImageWithAI({
           prompt: parsed.imagePrompt || parsed.title || prompt,
           tags: parsed.tags || [],
           category: parsed.category || category,
@@ -356,7 +416,7 @@ Return ONLY valid JSON matching this exact structure:
         const parsed = normalizeGeneratedPost(JSON.parse(raw));
         parsed.generatedBy = `OpenAI ChatGPT (${selectedModel})`;
         // Auto-attach a topic-aware SVG banner
-        const imgResult = generateImageWithAI({
+        const imgResult = await generateImageWithAI({
           prompt: parsed.imagePrompt || parsed.title || prompt,
           tags: parsed.tags || [],
           category: parsed.category || category,
@@ -375,7 +435,21 @@ Return ONLY valid JSON matching this exact structure:
 /**
  * Generate a rich, topic-aware SVG banner dynamically tailored to the blog post
  */
-function generateImageWithAI({ prompt, style = 'modern', tags = [], category = 'Engineering' }) {
+async function generateImageWithAI({ prompt, style = 'modern', tags = [], category = 'Engineering' }) {
+  const veniceKey = process.env.VENICE_API_KEY;
+  if (veniceKey) {
+    const response = await fetch(`${process.env.VENICE_BASE_URL || 'https://api.venice.ai/api/v1'}/images/generations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${veniceKey}` },
+      body: JSON.stringify({ prompt, model: process.env.VENICE_IMAGE_MODEL || 'fluently-xl', n: 1, size: '1024x576', response_format: 'url' }),
+    });
+    const data = await response.json();
+    const image = data.data?.[0];
+    if (response.ok && (image?.url || image?.b64_json)) {
+      return { success: true, prompt, imageUri: image.url || `data:image/png;base64,${image.b64_json}`, format: image.url ? 'url' : 'png', aspectRatio: '16:9' };
+    }
+    throw new Error(data.error?.message || 'Venice image generation failed.');
+  }
   const cleanTitle = (prompt || 'Next-Gen Image Processing').trim();
 
   // Category-driven color palettes

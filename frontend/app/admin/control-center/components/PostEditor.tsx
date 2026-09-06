@@ -1050,6 +1050,7 @@ export default function PostEditor({ initialPost, onSaveSuccess, onCancel }: Pro
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   >
                     <option value="auto">Auto (Configured Key)</option>
+                    <option value="venice">Venice AI</option>
                     <option value="gemini">Google Gemini</option>
                     <option value="openai">OpenAI ChatGPT</option>
                     <option value="smart">Built-in Smart AI</option>

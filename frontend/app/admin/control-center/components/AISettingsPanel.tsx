@@ -164,7 +164,7 @@ export default function AISettingsPanel() {
             AI Engine & API Keys Configuration
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl leading-relaxed">
-            Connect your OpenAI (ChatGPT) and Google Gemini API keys. The system uses these keys for 1-click blog post generation, SEO metadata optimization, and AI featured graphic synthesis.
+            Connect OpenAI or Google Gemini, or use the server-side Venice AI configuration for 1-click blog post generation, SEO metadata optimization, and AI featured graphic synthesis.
           </p>
         </div>
 
@@ -203,6 +203,7 @@ export default function AISettingsPanel() {
               { id: 'auto', title: 'Auto (Smart Route)', desc: 'Uses Gemini if configured, otherwise OpenAI or Smart Engine' },
               { id: 'gemini', title: 'Google Gemini', desc: 'Fastest generation with Gemini 1.5/2.0 multimodal models' },
               { id: 'openai', title: 'OpenAI ChatGPT', desc: 'Industry-standard reasoning with GPT-4o / GPT-4o-mini' },
+              { id: 'venice', title: 'Venice AI', desc: 'Server-side Venice inference for private blog and image generation' },
               { id: 'smart', title: 'Built-in Engine', desc: 'Zero API keys required. Uses native compression AI' },
             ].map((prov) => {
               const selected = activeProvider === prov.id;

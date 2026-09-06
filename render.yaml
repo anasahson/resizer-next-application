@@ -36,6 +36,14 @@ services:
         value: resizer@anas.com
       - key: SUPERADMIN_PASSWORD
         sync: false
+      - key: VENICE_API_KEY
+        sync: false
+      - key: VENICE_BASE_URL
+        value: https://api.venice.ai/api/v1
+      - key: VENICE_IMAGE_MODEL
+        value: fluently-xl
+      - key: GEMINI_API_KEY
+        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

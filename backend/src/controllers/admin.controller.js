@@ -32,7 +32,11 @@ const handleTestAIConnection = async (req, res) => {
     const result = await aiService.testAIConnection({ provider, apiKey, model });
     return res.status(result.success ? 200 : 400).json(result);
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Unable to update admin data.' });
+    console.error('[AI blog generation]', error.message);
+    return res.status(502).json({
+      success: false,
+      message: error.message || 'AI blog generation failed.',
+    });
   }
 };
 
@@ -48,7 +52,11 @@ const handleAIGeneratePost = async (req, res) => {
     const generatedData = await aiService.generatePostWithAI({ prompt, category, tone, customProvider: provider });
     return res.status(200).json({ success: true, data: generatedData });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Unable to update admin data.' });
+    console.error('[AI image generation]', error.message);
+    return res.status(502).json({
+      success: false,
+      message: error.message || 'AI image generation failed.',
+    });
   }
 };
 
