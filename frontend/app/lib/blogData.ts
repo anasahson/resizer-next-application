@@ -455,9 +455,9 @@ export async function getLivePostBySlug(slug: string): Promise<BlogPost | undefi
       }
     }
   } catch (_) {}
-  return getPostBySlug(slug);
+  return undefined;
 }
 
 export function getAllPostSlugs(): string[] {
-  return BLOG_POSTS.map((p) => p.slug);
+  return [];
 }

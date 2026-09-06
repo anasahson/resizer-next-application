@@ -3,8 +3,6 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
-  BLOG_POSTS,
-  getPostBySlug,
   getLivePostBySlug,
   getAllPostSlugs,
   BlogPost,
@@ -84,7 +82,7 @@ export default async function BlogPostPage({ params }: Props) {
   }
 
   // Related articles (same category or others, excluding current)
-  const relatedPosts = BLOG_POSTS.filter((p) => p.slug !== post.slug).slice(0, 3);
+  const relatedPosts: BlogPost[] = [];
 
   // 3. JSON-LD Structured Data Schema for Google Search Rich Results
   const articleSchema = {
