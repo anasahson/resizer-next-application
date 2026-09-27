@@ -230,6 +230,7 @@ export default function Resizer() {
   const [activeTab, setActiveTab] = useState<'presets' | 'filters' | 'export'>('presets');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [rightPanelMode, setRightPanelMode] = useState<'settings' | 'results'>('settings');
 
   const originalWidthRef = useRef(1920);
   const originalHeightRef = useRef(1080);
@@ -578,10 +579,11 @@ export default function Resizer() {
 
       setResults(successful);
       setDownloadState('done');
+      setRightPanelMode('results');
       showToast(`Optimization complete! ${successful.length} image(s) processed.`);
       // Auto-scroll to preview after processing
       requestAnimationFrame(() => {
-        afterPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        afterPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
     } catch (err: any) {
       setProcessingError(err?.message || 'Failed to process images. Is the backend running on port 5000?');
@@ -1403,34 +1405,181 @@ export default function Resizer() {
               <div className="lg:col-span-5 space-y-4">
                 <div className="bg-surface-elevated dark:bg-zinc-900/90 rounded-3xl border border-border shadow-xl overflow-hidden">
 
-                  {/* Tab Navigation — icon + short label, never wraps */}
-                  <div className="flex bg-surface dark:bg-zinc-800/80 border-b border-border">
-                    {[
-                      { id: 'presets', short: 'Size', icon: '⊞' },
-                      { id: 'filters', short: 'Filters', icon: '✦' },
-                      { id: 'export',  short: 'Export',  icon: '⚡' },
-                    ].map((tab) => {
-                      const isCurrent = activeTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          onClick={() => setActiveTab(tab.id as any)}
-                          className={`flex-1 py-3 text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 whitespace-nowrap ${
-                            isCurrent
-                              ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white/50 dark:bg-zinc-900/60'
-                              : 'border-transparent text-muted hover:text-primary hover:bg-white/30 dark:hover:bg-zinc-700/30'
-                          }`}
-                        >
-                          <span className="text-base leading-none">{tab.icon}</span>
-                          <span>{tab.short}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {/* Panel header — toggle between Settings and Results */}
+                  {results.length > 0 ? (
+                    <div className="flex bg-surface dark:bg-zinc-800/80 border-b border-border">
+                      <button
+                        onClick={() => setRightPanelMode('results')}
+                        className={`flex-1 py-3 text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 ${
+                          rightPanelMode === 'results'
+                            ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-white/50 dark:bg-zinc-900/60'
+                            : 'border-transparent text-muted hover:text-primary'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Results ({results.length})
+                      </button>
+                      <button
+                        onClick={() => setRightPanelMode('settings')}
+                        className={`flex-1 py-3 text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 ${
+                          rightPanelMode === 'settings'
+                            ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white/50 dark:bg-zinc-900/60'
+                            : 'border-transparent text-muted hover:text-primary'
+                        }`}
+                      >
+                        <Sliders className="w-4 h-4" />
+                        Settings
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex bg-surface dark:bg-zinc-800/80 border-b border-border">
+                      {[
+                        { id: 'presets', short: 'Size', icon: '⊞' },
+                        { id: 'filters', short: 'Filters', icon: '✦' },
+                        { id: 'export',  short: 'Export',  icon: '⚡' },
+                      ].map((tab) => {
+                        const isCurrent = activeTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex-1 py-3 text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 whitespace-nowrap ${
+                              isCurrent
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white/50 dark:bg-zinc-900/60'
+                                : 'border-transparent text-muted hover:text-primary hover:bg-white/30 dark:hover:bg-zinc-700/30'
+                            }`}
+                          >
+                            <span className="text-base leading-none">{tab.icon}</span>
+                            <span>{tab.short}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   <div className="p-5 space-y-5">
 
-                  {/* TAB 1: PRESETS & DIMENSIONS */}
+                  {/* ── RESULTS PANEL (shown right next to the canvas) ── */}
+                  {rightPanelMode === 'results' && results.length > 0 && (
+                    <div className="space-y-3">
+                      {/* Bulk actions */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={downloadAllAsZip}
+                          className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <FileArchive className="w-3.5 h-3.5" />
+                          Download All ZIP
+                        </button>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="py-2 px-3 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-primary dark:text-white text-xs font-bold border border-border transition-colors flex items-center gap-1.5"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Add More
+                        </button>
+                        <button
+                          onClick={clearAll}
+                          className="py-2 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-rose-500 text-xs font-bold border border-rose-200 dark:border-rose-500/30 transition-colors"
+                          title="Clear all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Per-image result rows */}
+                      <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
+                        {results.map((result, index) => {
+                          const originalFile = files[index];
+                          if (!originalFile) return null;
+                          return (
+                            <div
+                              key={`inline-result-${index}`}
+                              className={`group flex items-center gap-3 p-2.5 rounded-2xl border transition-all cursor-pointer ${
+                                index === selectedIndex
+                                  ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10 ring-1 ring-blue-500/30'
+                                  : 'border-border bg-surface dark:bg-zinc-950 hover:border-blue-400/60'
+                              }`}
+                              onClick={() => setSelectedIndex(index)}
+                            >
+                              {/* Thumbnail */}
+                              <div className="relative shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-100 dark:bg-zinc-800">
+                                <img
+                                  src={result.dataBase64}
+                                  alt={result.originalName}
+                                  className="w-full h-full object-cover"
+                                />
+                                <span className="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-emerald-600/90 text-white font-extrabold py-0.5">
+                                  -{Math.max(0, result.savingsPercent)}%
+                                </span>
+                              </div>
+
+                              {/* Info */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-semibold text-primary dark:text-white truncate">{result.originalName}</p>
+                                <p className="text-[10px] font-mono text-muted">
+                                  {formatFileSize(result.originalSizeBytes)} → <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatFileSize(result.outputSizeBytes)}</span>
+                                </p>
+                                <p className="text-[10px] text-muted">{result.width}×{result.height} · {result.format.toUpperCase()}</p>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => downloadSingle(result)}
+                                  className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                                  title="Download"
+                                >
+                                  <Download className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => copyImageToClipboard(result.dataBase64)}
+                                  className="p-1.5 rounded-lg bg-surface dark:bg-zinc-800 border border-border hover:border-blue-400 text-muted hover:text-blue-500 transition-colors"
+                                  title="Copy"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => removeImageAndResult(index)}
+                                  className="p-1.5 rounded-lg bg-surface dark:bg-zinc-800 border border-border hover:border-rose-400 text-muted hover:text-rose-500 transition-colors"
+                                  title="Remove"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── SETTINGS TABS (shown when rightPanelMode === 'settings' OR no results yet) ── */}
+                  {(rightPanelMode === 'settings' || results.length === 0) && (<>
+
+                  {/* Show the old tab bar when results exist and settings mode is active */}
+                  {results.length > 0 && (
+                    <div className="flex gap-1.5 p-1 bg-surface dark:bg-zinc-800 rounded-2xl border border-border -mt-1 mb-1">
+                      {[
+                        { id: 'presets', short: 'Size', icon: '⊞' },
+                        { id: 'filters', short: 'Filters', icon: '✦' },
+                        { id: 'export', short: 'Export', icon: '⚡' },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id as any)}
+                          className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
+                            activeTab === tab.id
+                              ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                              : 'text-muted hover:text-primary'
+                          }`}
+                        >
+                          <span>{tab.icon}</span>
+                          <span>{tab.short}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {activeTab === 'presets' && (
                     <div className="space-y-4">
 
@@ -1791,183 +1940,35 @@ export default function Resizer() {
                     </div>
                   </div>
 
+                  </>)}
+
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* ===================================================================== */}
-            {/* BATCH RESULTS PANEL — shows after processing                           */}
-            {/* ===================================================================== */}
-            {results.length > 0 ? (
-              <div className="bg-surface-elevated dark:bg-zinc-900 rounded-3xl p-6 border border-border shadow-sm">
-                <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-                  <div>
-                    <h3 className="font-bold text-base flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      <span>{results.length} Image{results.length > 1 ? 's' : ''} Processed</span>
-                    </h3>
-                    <p className="text-xs text-muted mt-0.5">
-                      Download individually or grab them all as a ZIP. Click 🗑 to remove an image from the queue.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={downloadAllAsZip}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all hover:scale-105 flex items-center gap-1.5"
-                    >
-                      <FileArchive className="w-4 h-4" />
-                      Download All ZIP
-                    </button>
-                    <button
-                      onClick={clearAll}
-                      className="px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-xs border border-rose-200 dark:border-rose-500/30 transition-all flex items-center gap-1.5"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Clear All
-                    </button>
-                  </div>
+            {/* Compact queue strip — only visible when NO results yet (before processing) */}
+            {results.length === 0 && files.length > 1 && (
+              <div className="bg-surface-elevated dark:bg-zinc-900 rounded-2xl p-4 border border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-primary dark:text-white">Image Queue ({files.length})</h3>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {results.map((result, index) => {
-                    const originalFile = files[index];
-                    if (!originalFile) return null;
-                    return (
-                      <div
-                        key={`result-${index}`}
-                        className="group relative rounded-2xl overflow-hidden border border-border bg-surface dark:bg-zinc-950 hover:border-blue-400/60 hover:shadow-lg transition-all"
-                      >
-                        {/* Thumbnail */}
-                        <div className="relative h-40 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:12px_12px] overflow-hidden">
-                          <img
-                            src={result.dataBase64}
-                            alt={result.originalName}
-                            className="w-full h-full object-contain p-2"
-                          />
-                          {/* Savings badge */}
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[11px] font-extrabold shadow">
-                            -{Math.max(0, result.savingsPercent)}%
-                          </div>
-                          {/* Hover overlay actions */}
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => downloadSingle(result)}
-                              className="p-2.5 rounded-xl bg-white/20 hover:bg-emerald-600 text-white transition-colors backdrop-blur-sm"
-                              title="Download"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => copyImageToClipboard(result.dataBase64)}
-                              className="p-2.5 rounded-xl bg-white/20 hover:bg-blue-600 text-white transition-colors backdrop-blur-sm"
-                              title="Copy to clipboard"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleWebShare(result)}
-                              className="p-2.5 rounded-xl bg-white/20 hover:bg-indigo-600 text-white transition-colors backdrop-blur-sm"
-                              title="Share"
-                            >
-                              <Share2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => removeImageAndResult(index)}
-                              className="p-2.5 rounded-xl bg-white/20 hover:bg-rose-600 text-white transition-colors backdrop-blur-sm"
-                              title="Remove from queue"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* File info row */}
-                        <div className="p-3">
-                          <p className="text-xs font-semibold text-primary dark:text-white truncate mb-1">{result.originalName}</p>
-                          <div className="flex items-center justify-between text-[11px] font-mono">
-                            <span className="text-muted">
-                              {formatFileSize(result.originalSizeBytes)} → <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatFileSize(result.outputSizeBytes)}</span>
-                            </span>
-                            <span className="text-muted">{result.width}×{result.height}</span>
-                          </div>
-                          {/* Action bar */}
-                          <div className="flex items-center gap-1.5 mt-3">
-                            <button
-                              onClick={() => downloadSingle(result)}
-                              className="flex-1 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition-all hover:scale-[1.02]"
-                            >
-                              <Download className="w-3 h-3" />
-                              Download
-                            </button>
-                            <button
-                              onClick={() => downloadAndRemove(result, index)}
-                              title="Download & remove from queue"
-                              className="py-1.5 px-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[11px] font-bold flex items-center justify-center gap-1 border border-blue-200 dark:border-blue-500/30 transition-all"
-                            >
-                              <Download className="w-3 h-3" />
-                              + Remove
-                            </button>
-                            <button
-                              onClick={() => removeImageAndResult(index)}
-                              title="Remove from queue"
-                              className="py-1.5 px-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 text-[11px] font-bold flex items-center justify-center border border-rose-200 dark:border-rose-500/30 transition-all"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Add more images CTA */}
-                <div className="mt-5 pt-4 border-t border-dashed border-border/60 flex items-center justify-between gap-3 flex-wrap">
-                  <p className="text-xs text-muted">
-                    Want to resize more images? Drop them in or click below.
-                  </p>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-primary dark:text-white text-xs font-bold border border-border transition-colors flex items-center gap-2"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    Add More Images
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Old queue grid when no results yet */
-              <div className="bg-surface-elevated dark:bg-zinc-900 rounded-3xl p-6 border border-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-base">Image Queue ({files.length})</h3>
-                    <p className="text-xs text-muted">
-                      Click any thumbnail to preview and compare. Process individual files or batch download all as a ZIP.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {files.map((file, index) => {
-                    const result = results.find((r) => r.originalName === file.name);
-                    return (
-                      <FileThumb
-                        key={`${file.name}-${index}`}
-                        file={file}
-                        isSelected={index === selectedIndex}
-                        onSelect={() => setSelectedIndex(index)}
-                        onRemove={() => removeImageAndResult(index)}
-                        result={result}
-                        isProcessing={downloadState === 'processing'}
-                        onDownload={result ? () => downloadSingle(result) : undefined}
-                        onCopy={result ? () => copyImageToClipboard(result.dataBase64) : undefined}
-                      />
-                    );
-                  })}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  {files.map((file, index) => (
+                    <FileThumb
+                      key={`${file.name}-${index}`}
+                      file={file}
+                      isSelected={index === selectedIndex}
+                      onSelect={() => setSelectedIndex(index)}
+                      onRemove={() => removeImageAndResult(index)}
+                      result={undefined}
+                      isProcessing={downloadState === 'processing'}
+                    />
+                  ))}
                 </div>
               </div>
             )}
+
           </div>
         )}
 
