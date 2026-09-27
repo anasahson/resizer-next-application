@@ -43,13 +43,7 @@ export const AUTH_TOKEN_KEYS = {
   superadmin: 'resizer_superadmin_auth_token',
 } as const;
 
-function getTokenKeyForPath() {
-  return typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
-    ? AUTH_TOKEN_KEYS.superadmin
-    : AUTH_TOKEN_KEYS.user;
-}
-
-function getUserFromToken(storedToken: string): User | null {
+export function getUserFromToken(storedToken: string): User | null {
   try {
     const payload = JSON.parse(atob(storedToken.split('.')[1]));
     if (!payload.id || !payload.email || !payload.role || (payload.exp && payload.exp * 1000 <= Date.now())) {
@@ -66,6 +60,43 @@ function getUserFromToken(storedToken: string): User | null {
   }
 }
 
+export function getActiveAuthToken(): { token: string; key: string } | null {
+  if (typeof window === 'undefined') return null;
+
+  const isAdminPath = window.location.pathname.startsWith('/admin');
+
+  if (isAdminPath) {
+    // On admin routes, prioritize superadmin credentials
+    const superToken = localStorage.getItem(AUTH_TOKEN_KEYS.superadmin);
+    if (superToken && getUserFromToken(superToken)) {
+      return { token: superToken, key: AUTH_TOKEN_KEYS.superadmin };
+    }
+    const userToken = localStorage.getItem(AUTH_TOKEN_KEYS.user);
+    if (userToken && getUserFromToken(userToken)) {
+      return { token: userToken, key: AUTH_TOKEN_KEYS.user };
+    }
+  } else {
+    // On public/user routes, prioritize user token if present, but fall back to superadmin
+    // so superadmins stay authenticated and are not kicked into login loops
+    const userToken = localStorage.getItem(AUTH_TOKEN_KEYS.user);
+    if (userToken && getUserFromToken(userToken)) {
+      return { token: userToken, key: AUTH_TOKEN_KEYS.user };
+    }
+    const superToken = localStorage.getItem(AUTH_TOKEN_KEYS.superadmin);
+    if (superToken && getUserFromToken(superToken)) {
+      return { token: superToken, key: AUTH_TOKEN_KEYS.superadmin };
+    }
+  }
+
+  // Check legacy token keys as fallback
+  const legacyToken = localStorage.getItem('resizer_auth_token') || localStorage.getItem('token');
+  if (legacyToken && getUserFromToken(legacyToken)) {
+    return { token: legacyToken, key: AUTH_TOKEN_KEYS.user };
+  }
+
+  return null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -74,19 +105,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Validate stored token and fetch user on load
   const loadUserFromStorage = useCallback(async () => {
     try {
-      const tokenKey = getTokenKeyForPath();
-      const storedToken = localStorage.getItem(tokenKey);
+      const active = getActiveAuthToken();
       localStorage.removeItem('resizer_auth_token');
       localStorage.removeItem('token');
-      if (!storedToken) {
+
+      if (!active) {
+        setToken(null);
+        setUser(null);
         setIsLoading(false);
         return;
       }
 
-      setToken(storedToken);
-      const cachedUser = getUserFromToken(storedToken);
+      setToken(active.token);
+      const cachedUser = getUserFromToken(active.token);
       if (!cachedUser) {
-        localStorage.removeItem(tokenKey);
+        localStorage.removeItem(active.key);
         setToken(null);
         setUser(null);
         setIsLoading(false);
@@ -97,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
         headers: {
-          Authorization: `Bearer ${storedToken}`,
+          Authorization: `Bearer ${active.token}`,
         },
       });
 
@@ -106,12 +139,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data.success && data.user) {
           setUser(data.user);
         } else {
-          localStorage.removeItem(tokenKey);
+          localStorage.removeItem(active.key);
           setToken(null);
           setUser(null);
         }
       } else {
-        localStorage.removeItem(tokenKey);
+        localStorage.removeItem(active.key);
         setToken(null);
         setUser(null);
       }
@@ -211,8 +244,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout handler
   const logout = (redirectTo?: string | React.MouseEvent) => {
-    const tokenKey = user?.role === 'superadmin' ? AUTH_TOKEN_KEYS.superadmin : AUTH_TOKEN_KEYS.user;
-    localStorage.removeItem(tokenKey);
+    localStorage.removeItem(AUTH_TOKEN_KEYS.superadmin);
+    localStorage.removeItem(AUTH_TOKEN_KEYS.user);
     localStorage.removeItem('resizer_auth_token');
     localStorage.removeItem('token');
     setToken(null);

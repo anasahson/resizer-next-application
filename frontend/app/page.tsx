@@ -32,6 +32,9 @@ import {
   Lock,
   Unlock,
   Zap,
+  ChevronDown,
+  ShieldCheck,
+  ArrowRight,
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
@@ -226,6 +229,7 @@ export default function Resizer() {
   const [urlLoading, setUrlLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'presets' | 'filters' | 'export'>('presets');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const originalWidthRef = useRef(1920);
   const originalHeightRef = useRef(1080);
@@ -828,11 +832,11 @@ export default function Resizer() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] mb-5 bg-gradient-to-r from-primary via-blue-600 to-indigo-600 dark:from-white dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-            Resize & Convert Images at Lightning Speed
+            Free Online Image Resizer — Resize Images in Pixels & Percentage
           </h1>
 
           <p className="text-base sm:text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
-            Batch-resize up to 50 images, convert to WebP, AVIF, JPG or PNG, and shrink file sizes by up to 85% — without a single byte leaving your device.
+            Quickly resize, compress, and convert images online for free. Adjust exact pixel dimensions, shrink file size in KB without losing quality, and batch-process up to 50 photos in 100% private in-browser speed.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
@@ -1795,6 +1799,266 @@ export default function Resizer() {
             </div>
           </div>
         )}
+
+        {/* ========================================================================= */}
+        {/* TOP LEVEL SEO CONTENT: GUIDES, DIMENSION PRESETS, BENEFITS & FAQS         */}
+        {/* ========================================================================= */}
+        <section aria-label="Image Resizer Guides & Tools" className="mt-16 sm:mt-24 space-y-16 sm:space-y-24">
+          
+          {/* 1. HOW TO RESIZE IMAGES ONLINE (3 EASY STEPS) */}
+          <div className="bg-surface-elevated/60 dark:bg-zinc-900/60 border border-border/80 rounded-3xl p-6 sm:p-10 backdrop-blur-xl">
+            <div className="max-w-2xl mx-auto text-center mb-10 space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                Step-by-Step Guide
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-primary dark:text-white tracking-tight">
+                How to Resize Images Online for Free
+              </h2>
+              <p className="text-xs sm:text-sm text-muted">
+                Resize, crop, and optimize photos to exact pixel dimensions in three effortless steps.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-6 rounded-2xl bg-surface dark:bg-zinc-950 border border-border/60 space-y-3 relative group hover:border-blue-500/50 transition-all">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 font-extrabold text-lg flex items-center justify-center">
+                  1
+                </div>
+                <h3 className="font-bold text-base text-primary dark:text-white">
+                  Upload or Drop Photos
+                </h3>
+                <p className="text-xs text-muted leading-relaxed">
+                  Drop your image file into the studio or paste directly from clipboard (<kbd className="px-1 py-0.5 rounded bg-surface-elevated text-[10px] font-mono">Ctrl+V</kbd>). Supports JPG, PNG, WebP, AVIF, and HEIC up to 50 photos.
+                </p>
+              </div>
+
+              <div className="p-6 rounded-2xl bg-surface dark:bg-zinc-950 border border-border/60 space-y-3 relative group hover:border-indigo-500/50 transition-all">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-extrabold text-lg flex items-center justify-center">
+                  2
+                </div>
+                <h3 className="font-bold text-base text-primary dark:text-white">
+                  Set Width, Height or Scale
+                </h3>
+                <p className="text-xs text-muted leading-relaxed">
+                  Input custom width and height in pixels with aspect ratio lock enabled, pick a percentage scale (25%, 50%, 75%), or select a social media preset.
+                </p>
+              </div>
+
+              <div className="p-6 rounded-2xl bg-surface dark:bg-zinc-950 border border-border/60 space-y-3 relative group hover:border-emerald-500/50 transition-all">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-lg flex items-center justify-center">
+                  3
+                </div>
+                <h3 className="font-bold text-base text-primary dark:text-white">
+                  Compress & Download
+                </h3>
+                <p className="text-xs text-muted leading-relaxed">
+                  Choose modern output formats like WebP or AVIF, adjust compression quality to reach your target KB, and download single files or a ZIP archive instantly.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. SOCIAL MEDIA & WEB IMAGE RESIZE PRESET SIZES TABLE */}
+          <div className="space-y-6">
+            <div className="max-w-2xl mx-auto text-center space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-500">
+                Popular Presets & Dimensions
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-primary dark:text-white tracking-tight">
+                Recommended Dimensions for Social Media & Web
+              </h2>
+              <p className="text-xs sm:text-sm text-muted">
+                Pre-configured pixel dimensions for pixel-perfect uploads across social networks, websites, and e-commerce.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto rounded-3xl border border-border/80 bg-surface-elevated/50 dark:bg-zinc-900/50 backdrop-blur-xl">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead>
+                  <tr className="border-b border-border/80 bg-surface dark:bg-zinc-950/70 text-muted font-bold uppercase text-[11px] tracking-wider">
+                    <th className="py-4 px-6">Platform / Use Case</th>
+                    <th className="py-4 px-6">Dimensions (Pixels)</th>
+                    <th className="py-4 px-6">Aspect Ratio</th>
+                    <th className="py-4 px-6">Best Format</th>
+                    <th className="py-4 px-6 text-right">Quick Apply</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50 text-secondary dark:text-zinc-300">
+                  {[
+                    { platform: 'Instagram Post (Square)', dims: '1080 × 1080 px', ratio: '1:1', format: 'JPG / WebP', preset: 'instagram-post' },
+                    { platform: 'Instagram Story / Reel / TikTok', dims: '1080 × 1920 px', ratio: '9:16', format: 'JPG / WebP', preset: 'instagram-story' },
+                    { platform: 'YouTube Video Thumbnail', dims: '1280 × 720 px', ratio: '16:9', format: 'WebP / JPG', preset: 'youtube' },
+                    { platform: 'Facebook Cover Photo', dims: '1200 × 630 px', ratio: '1.91:1', format: 'PNG / JPG', preset: 'facebook' },
+                    { platform: 'X / Twitter Header & Post', dims: '1200 × 675 px', ratio: '16:9', format: 'JPG / WebP', preset: 'twitter' },
+                    { platform: 'LinkedIn Company Banner', dims: '1200 × 627 px', ratio: '1.91:1', format: 'PNG / JPG', preset: 'linkedin' },
+                    { platform: 'E-commerce Product (Amazon / Shopify)', dims: '2000 × 2000 px', ratio: '1:1', format: 'WebP / PNG', preset: 'amazon' },
+                    { platform: 'Website Full HD Hero Banner', dims: '1920 × 1080 px', ratio: '16:9', format: 'AVIF / WebP', preset: 'screen-fhd' },
+                    { platform: 'Standard Passport Photo', dims: '600 × 600 px', ratio: '1:1', format: 'JPG', preset: 'avatar' },
+                  ].map((row, idx) => (
+                    <tr key={idx} className="hover:bg-blue-500/5 transition-colors">
+                      <td className="py-3.5 px-6 font-semibold text-primary dark:text-white flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                        <span>{row.platform}</span>
+                      </td>
+                      <td className="py-3.5 px-6 font-mono font-bold text-blue-600 dark:text-blue-400">{row.dims}</td>
+                      <td className="py-3.5 px-6 font-mono text-muted">{row.ratio}</td>
+                      <td className="py-3.5 px-6">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface border border-border">
+                          {row.format}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-6 text-right">
+                        <button
+                          onClick={() => {
+                            selectPreset(row.preset);
+                            document.getElementById('resizer-studio')?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white dark:text-blue-400 dark:hover:text-white text-xs font-semibold transition-all inline-flex items-center gap-1"
+                        >
+                          <span>Apply</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 3. WHY CHOOSE RESIZORA (CORE VALUE PILLARS) */}
+          <div className="space-y-6">
+            <div className="max-w-2xl mx-auto text-center space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                Performance & Privacy
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-primary dark:text-white tracking-tight">
+                Why Choose Resizora Online Image Resizer?
+              </h2>
+              <p className="text-xs sm:text-sm text-muted">
+                Engineered for professional designers, photographers, marketers, and developers who need fast, lossless image resizing without privacy risks.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                {
+                  icon: <ShieldCheck className="w-6 h-6 text-blue-500" />,
+                  title: '100% In-Browser Privacy',
+                  desc: 'Your photos never leave your device. All resizing, compression, and format conversions execute locally in your browser with zero cloud storage.',
+                },
+                {
+                  icon: <Zap className="w-6 h-6 text-amber-500" />,
+                  title: 'Instant Next-Gen Formats',
+                  desc: 'Convert outdated PNGs and heavy JPEGs to cutting-edge WebP and AVIF formats, shrinking image file sizes by up to 90% for blazing page speed.',
+                },
+                {
+                  icon: <Layers className="w-6 h-6 text-indigo-500" />,
+                  title: 'Batch Image Processing',
+                  desc: 'Resize up to 50 images at once. Apply consistent dimensions, aspect ratio constraints, and compression levels, then download all files in one click as a ZIP.',
+                },
+                {
+                  icon: <Eye className="w-6 h-6 text-cyan-500" />,
+                  title: 'Interactive Split Comparison',
+                  desc: 'Inspect image quality before downloading. Slide the interactive split-screen divider to compare original vs processed results down to the pixel.',
+                },
+                {
+                  icon: <Sparkles className="w-6 h-6 text-purple-500" />,
+                  title: 'Lossless Lanczos Resampling',
+                  desc: 'Keep fine textures, sharp typography, and vibrant colors intact. Our bicubic and Lanczos resampling prevents pixelation and blurriness.',
+                },
+                {
+                  icon: <CheckCircle2 className="w-6 h-6 text-emerald-500" />,
+                  title: '100% Free Forever',
+                  desc: 'No mandatory account creation, no subscriptions, no file quotas, and strictly zero watermarks stamped onto your images.',
+                },
+              ].map((feat, idx) => (
+                <div key={idx} className="p-6 rounded-3xl bg-surface-elevated dark:bg-zinc-900 border border-border/80 hover:border-blue-500/40 transition-all space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-surface dark:bg-zinc-950 border border-border flex items-center justify-center">
+                    {feat.icon}
+                  </div>
+                  <h3 className="font-bold text-base text-primary dark:text-white">{feat.title}</h3>
+                  <p className="text-xs text-muted leading-relaxed">{feat.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. COMPREHENSIVE SEO FAQ ACCORDION (JSON-LD ALIGNED) */}
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="text-center space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                Frequently Asked Questions
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-primary dark:text-white tracking-tight">
+                Everything You Need to Know About Image Resizing
+              </h2>
+              <p className="text-xs sm:text-sm text-muted">
+                Answers to the most common questions about online image resizing, compression, and format conversions.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                {
+                  q: 'How do I resize an image online for free?',
+                  a: 'Simply drag and drop your photo into the Resizora studio above. Enter your desired width and height in pixels (or scale by percentage), choose your preferred format like WebP or JPG, and click "Download" to save your resized image instantly.',
+                },
+                {
+                  q: 'Will resizing an image reduce its sharpness or visual quality?',
+                  a: 'Not with Resizora! We employ advanced multi-pass bicubic and Lanczos resampling filters. Downscaling retains high sharpness and contrast, while upscaling uses sub-pixel interpolation to minimize blurriness.',
+                },
+                {
+                  q: 'How can I reduce an image file size to under 100KB or 200KB?',
+                  a: 'To shrink file sizes under 100KB, convert the format to WebP or AVIF and set the compression quality slider between 75% and 82%. Modern codecs achieve 70% to 90% file size reduction with zero visible loss in visual fidelity.',
+                },
+                {
+                  q: 'Can I resize multiple images at once (batch resize)?',
+                  a: 'Yes! Resizora supports bulk batch resizing for up to 50 images simultaneously. You can apply uniform pixel dimensions or scale factors across all photos and download them packaged in a single ZIP file.',
+                },
+                {
+                  q: 'Are my uploaded photos safe, private, and confidential?',
+                  a: 'Yes, 100%. Resizora runs entirely client-side inside your web browser using HTML5 Canvas and WebAssembly. Your images never leave your computer and are never uploaded, analyzed, or stored on remote cloud servers.',
+                },
+                {
+                  q: 'What is the difference between WebP, AVIF, and JPG formats?',
+                  a: 'JPEG is the universal legacy format. WebP is Google’s modern format offering ~30% smaller files than JPEG with transparency support. AVIF is the next-generation codec offering up to 50% smaller files than JPEG with superior HDR and color depth.',
+                },
+                {
+                  q: 'How do I resize an image to exact pixel dimensions (width × height)?',
+                  a: 'In the Resizora studio, select the "Pixels" mode. Enter your exact target width and height in the input boxes. To keep the original proportions without distortion, ensure the "Lock Aspect Ratio" toggle is active.',
+                },
+              ].map((faq, idx) => {
+                const isOpen = openFaq === idx;
+                return (
+                  <div
+                    key={idx}
+                    className="rounded-2xl border border-border/80 bg-surface-elevated/70 dark:bg-zinc-900/70 overflow-hidden transition-colors"
+                  >
+                    <button
+                      onClick={() => setOpenFaq(isOpen ? null : idx)}
+                      className="w-full py-4 px-6 text-left flex items-center justify-between gap-4 font-semibold text-sm text-primary dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      aria-expanded={isOpen}
+                    >
+                      <span>{faq.q}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-muted shrink-0 transition-transform duration-200 ${
+                          isOpen ? 'rotate-180 text-blue-500' : ''
+                        }`}
+                      />
+                    </button>
+                    {isOpen && (
+                      <div className="px-6 pb-4 pt-1 text-xs sm:text-sm text-muted leading-relaxed border-t border-border/40 animate-in fade-in duration-150">
+                        {faq.a}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </section>
 
         {/* URL Import Modal */}
         {showUrlModal && (

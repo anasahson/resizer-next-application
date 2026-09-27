@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AUTH_TOKEN_KEYS } from '../context/AuthContext';
+import { getActiveAuthToken } from '../context/AuthContext';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -14,12 +14,9 @@ const api = axios.create({
 // Add auth token to requests
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const tokenKey = window.location.pathname.startsWith('/admin')
-      ? AUTH_TOKEN_KEYS.superadmin
-      : AUTH_TOKEN_KEYS.user;
-    const token = localStorage.getItem(tokenKey);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const active = getActiveAuthToken();
+    if (active?.token) {
+      config.headers.Authorization = `Bearer ${active.token}`;
     }
   }
   return config;

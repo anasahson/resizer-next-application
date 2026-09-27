@@ -29,20 +29,14 @@ export default function LoginPage() {
     if (result.success) {
       setSuccessMessage(result.message || 'Login successful! Redirecting...');
       setTimeout(() => {
-        // Read stored user if available or default
-        for (const tokenKey of [AUTH_TOKEN_KEYS.superadmin, AUTH_TOKEN_KEYS.user]) {
-          const token = localStorage.getItem(tokenKey);
-          if (!token) continue;
-          try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            if (payload.email === email.trim().toLowerCase()) {
-              router.push(payload.role === 'superadmin' ? '/admin/control-center' : '/dashboard');
-              return;
-            }
-          } catch {
-            // Try the other role-specific cache.
-          }
+        const searchParams = new URLSearchParams(window.location.search);
+        const redirectTarget = searchParams.get('redirect');
+
+        if (redirectTarget && redirectTarget.startsWith('/')) {
+          router.push(redirectTarget);
+          return;
         }
+
         router.push('/dashboard');
       }, 700);
     } else {

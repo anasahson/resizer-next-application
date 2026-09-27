@@ -245,22 +245,24 @@ export default function Navbar() {
                     </span>
                   </div>
 
+                  {isSuperAdmin && (
+                    <Link
+                      href="/admin/control-center"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-indigo-400 hover:text-indigo-300 dark:hover:text-indigo-200 hover:bg-indigo-500/10 transition-colors mt-1 font-semibold"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>👑 Control Center</span>
+                    </Link>
+                  )}
+
                   <Link
-                    href={isSuperAdmin ? '/admin/control-center' : '/dashboard'}
+                    href="/dashboard"
                     onClick={() => setUserDropdownOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-secondary hover:text-primary dark:text-zinc-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors mt-1 font-medium"
                   >
-                    {isSuperAdmin ? (
-                      <>
-                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>👑 Control Center</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>👤 My Dashboard</span>
-                      </>
-                    )}
+                    <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>👤 My Dashboard</span>
                   </Link>
 
                   <button
@@ -370,12 +372,22 @@ export default function Navbar() {
           <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
             {user ? (
               <>
+                {isSuperAdmin && (
+                  <Link
+                    href="/admin/control-center"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full py-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold flex items-center justify-center gap-2"
+                  >
+                    <span>👑 Control Center</span>
+                  </Link>
+                )}
                 <Link
-                  href={isSuperAdmin ? '/admin/control-center' : '/dashboard'}
+                  href="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full py-2.5 rounded-xl bg-zinc-800 text-white text-xs font-semibold flex items-center justify-center gap-2"
                 >
-                  {isSuperAdmin ? '👑 Control Center' : '👤 My Dashboard'}
+                  <UserIcon className="w-4 h-4 text-cyan-400" />
+                  <span>👤 My Dashboard</span>
                 </Link>
                 <button
                   onClick={() => {
