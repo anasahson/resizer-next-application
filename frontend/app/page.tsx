@@ -35,6 +35,7 @@ import {
   ChevronDown,
   ShieldCheck,
   ArrowRight,
+  Plus,
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
@@ -307,14 +308,31 @@ export default function Resizer() {
   };
 
   const clearAll = () => {
-    setFiles([]);
-    setSelectedIndex(0);
-    setOriginalDims(null);
+    // Clear processed results and reset state WITHOUT closing the canvas
     setResults([]);
     setDownloadState('idle');
     setProcessingError(null);
-    showToast('Queue cleared');
+    setRightPanelMode('settings');
+    showToast('Results cleared');
   };
+
+  // Keep originalDims in sync with the currently selected file
+  useEffect(() => {
+    const currentFile = files[selectedIndex];
+    if (!currentFile) return;
+    const img = new Image();
+    const url = URL.createObjectURL(currentFile);
+    img.onload = () => {
+      originalWidthRef.current = img.naturalWidth;
+      originalHeightRef.current = img.naturalHeight;
+      setOriginalDims({ w: img.naturalWidth, h: img.naturalHeight });
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [files, selectedIndex]);
 
   // ===== CLIPBOARD PASTE SUPPORT (Ctrl + V) =====
   useEffect(() => {
@@ -898,6 +916,24 @@ export default function Resizer() {
 
       {/* ===== UPLOAD / EDITOR SECTION ===== */}
       <div id="resizer-studio" className="scroll-mt-24">
+        {/* Persistent file inputs mounted at all times for both dropzone & studio */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleFiles}
+        />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture
+          className="hidden"
+          onChange={handleFiles}
+        />
+
         {files.length === 0 ? (
           <div id="uploadState" className="transition-all space-y-5">
             {/* Pending preset confirmation banner */}
@@ -930,22 +966,6 @@ export default function Resizer() {
                   : 'border-border hover:border-blue-500/60 hover:bg-surface-elevated/60 dark:hover:bg-zinc-900/60 hover:shadow-lg'
               }`}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleFiles}
-              />
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture
-                className="hidden"
-                onChange={handleFiles}
-              />
 
               <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 text-blue-600 dark:text-blue-400 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md">
                 <Upload className="w-10 h-10" />
@@ -1063,9 +1083,10 @@ export default function Resizer() {
                 <button
                   onClick={clearAll}
                   className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-muted hover:text-rose-600 transition-colors flex items-center gap-1.5"
+                  title="Clear processed results without closing canvas"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Clear All</span>
+                  <span className="hidden sm:inline">Clear Results</span>
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -1155,6 +1176,19 @@ export default function Resizer() {
                   </div>
                 );
               })}
+
+              {/* Add More card inside the queue carousel */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="shrink-0 w-24 h-[106px] rounded-2xl border-2 border-dashed border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all flex flex-col items-center justify-center gap-1.5 text-muted hover:text-blue-500 group"
+                title="Add more images"
+              >
+                <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-zinc-800 group-hover:bg-blue-500/10 flex items-center justify-center transition-colors">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <span className="text-[11px] font-semibold">Add More</span>
+              </button>
             </div>
 
             {/* MAIN TWO-COLUMN STUDIO AREA */}
@@ -1481,7 +1515,7 @@ export default function Resizer() {
                         <button
                           onClick={clearAll}
                           className="py-2 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-rose-500 text-xs font-bold border border-rose-200 dark:border-rose-500/30 transition-colors"
-                          title="Clear all"
+                          title="Clear results (keeps images on canvas)"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
