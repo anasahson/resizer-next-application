@@ -590,7 +590,7 @@ export default function Resizer() {
     }
   }, [downloadState, files, width, height, format, quality, fitMode, maintainRatio, aiCrop, rotate, flipH, flipV, filterPreset, blurVal, sharpen, usePadColor, padColor, showToast]);
 
-  const downloadSingle = (result: ProcessedResult) => {
+  const downloadSingle = (result: ProcessedResult, fileIndex?: number) => {
     const ext = result.format || 'webp';
     const baseName = result.originalName.replace(/\.[^/.]+$/, '');
     const cleanFilename = `${baseName}${filenameSuffix}.${ext}`;
@@ -601,6 +601,27 @@ export default function Resizer() {
     a.click();
     document.body.removeChild(a);
     showToast(`Downloaded ${cleanFilename}`);
+  };
+
+  // Remove a single image from the queue AND its result after download/discard
+  const removeImageAndResult = (index: number) => {
+    const nextFiles = files.filter((_, i) => i !== index);
+    const nextResults = results.filter((_, i) => i !== index);
+    setFiles(nextFiles);
+    setResults(nextResults);
+    if (selectedIndex >= nextFiles.length) {
+      setSelectedIndex(Math.max(0, nextFiles.length - 1));
+    }
+    if (nextFiles.length === 0) {
+      setDownloadState('idle');
+      backToUpload();
+    }
+    showToast('Image removed from queue');
+  };
+
+  const downloadAndRemove = (result: ProcessedResult, index: number) => {
+    downloadSingle(result, index);
+    removeImageAndResult(index);
   };
 
   const downloadAllResults = () => {
@@ -1330,6 +1351,14 @@ export default function Resizer() {
                         >
                           <Share2 className="w-4 h-4" />
                         </button>
+                        {/* Discard / Remove from queue */}
+                        <button
+                          onClick={() => removeImageAndResult(selectedIndex)}
+                          className="p-2 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-muted hover:text-rose-500 transition-colors border border-border"
+                          title="Remove this image from queue"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => downloadSingle(results[selectedIndex])}
                           className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all hover:scale-105"
@@ -1767,36 +1796,178 @@ export default function Resizer() {
               </div>
             </div>
 
-            {/* Detailed File Queue Grid */}
-            <div className="bg-surface-elevated dark:bg-zinc-900 rounded-3xl p-6 border border-border">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold text-base">Image Queue ({files.length})</h3>
+            {/* ===================================================================== */}
+            {/* BATCH RESULTS PANEL — shows after processing                           */}
+            {/* ===================================================================== */}
+            {results.length > 0 ? (
+              <div className="bg-surface-elevated dark:bg-zinc-900 rounded-3xl p-6 border border-border shadow-sm">
+                <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+                  <div>
+                    <h3 className="font-bold text-base flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      <span>{results.length} Image{results.length > 1 ? 's' : ''} Processed</span>
+                    </h3>
+                    <p className="text-xs text-muted mt-0.5">
+                      Download individually or grab them all as a ZIP. Click 🗑 to remove an image from the queue.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={downloadAllAsZip}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all hover:scale-105 flex items-center gap-1.5"
+                    >
+                      <FileArchive className="w-4 h-4" />
+                      Download All ZIP
+                    </button>
+                    <button
+                      onClick={clearAll}
+                      className="px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-xs border border-rose-200 dark:border-rose-500/30 transition-all flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {results.map((result, index) => {
+                    const originalFile = files[index];
+                    if (!originalFile) return null;
+                    return (
+                      <div
+                        key={`result-${index}`}
+                        className="group relative rounded-2xl overflow-hidden border border-border bg-surface dark:bg-zinc-950 hover:border-blue-400/60 hover:shadow-lg transition-all"
+                      >
+                        {/* Thumbnail */}
+                        <div className="relative h-40 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:12px_12px] overflow-hidden">
+                          <img
+                            src={result.dataBase64}
+                            alt={result.originalName}
+                            className="w-full h-full object-contain p-2"
+                          />
+                          {/* Savings badge */}
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[11px] font-extrabold shadow">
+                            -{Math.max(0, result.savingsPercent)}%
+                          </div>
+                          {/* Hover overlay actions */}
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => downloadSingle(result)}
+                              className="p-2.5 rounded-xl bg-white/20 hover:bg-emerald-600 text-white transition-colors backdrop-blur-sm"
+                              title="Download"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => copyImageToClipboard(result.dataBase64)}
+                              className="p-2.5 rounded-xl bg-white/20 hover:bg-blue-600 text-white transition-colors backdrop-blur-sm"
+                              title="Copy to clipboard"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleWebShare(result)}
+                              className="p-2.5 rounded-xl bg-white/20 hover:bg-indigo-600 text-white transition-colors backdrop-blur-sm"
+                              title="Share"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => removeImageAndResult(index)}
+                              className="p-2.5 rounded-xl bg-white/20 hover:bg-rose-600 text-white transition-colors backdrop-blur-sm"
+                              title="Remove from queue"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* File info row */}
+                        <div className="p-3">
+                          <p className="text-xs font-semibold text-primary dark:text-white truncate mb-1">{result.originalName}</p>
+                          <div className="flex items-center justify-between text-[11px] font-mono">
+                            <span className="text-muted">
+                              {formatFileSize(result.originalSizeBytes)} → <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatFileSize(result.outputSizeBytes)}</span>
+                            </span>
+                            <span className="text-muted">{result.width}×{result.height}</span>
+                          </div>
+                          {/* Action bar */}
+                          <div className="flex items-center gap-1.5 mt-3">
+                            <button
+                              onClick={() => downloadSingle(result)}
+                              className="flex-1 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition-all hover:scale-[1.02]"
+                            >
+                              <Download className="w-3 h-3" />
+                              Download
+                            </button>
+                            <button
+                              onClick={() => downloadAndRemove(result, index)}
+                              title="Download & remove from queue"
+                              className="py-1.5 px-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[11px] font-bold flex items-center justify-center gap-1 border border-blue-200 dark:border-blue-500/30 transition-all"
+                            >
+                              <Download className="w-3 h-3" />
+                              + Remove
+                            </button>
+                            <button
+                              onClick={() => removeImageAndResult(index)}
+                              title="Remove from queue"
+                              className="py-1.5 px-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 text-[11px] font-bold flex items-center justify-center border border-rose-200 dark:border-rose-500/30 transition-all"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add more images CTA */}
+                <div className="mt-5 pt-4 border-t border-dashed border-border/60 flex items-center justify-between gap-3 flex-wrap">
                   <p className="text-xs text-muted">
-                    Click any thumbnail to preview and compare. Process individual files or batch download all as a ZIP.
+                    Want to resize more images? Drop them in or click below.
                   </p>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 rounded-xl bg-surface dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-primary dark:text-white text-xs font-bold border border-border transition-colors flex items-center gap-2"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Add More Images
+                  </button>
                 </div>
               </div>
+            ) : (
+              /* Old queue grid when no results yet */
+              <div className="bg-surface-elevated dark:bg-zinc-900 rounded-3xl p-6 border border-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-base">Image Queue ({files.length})</h3>
+                    <p className="text-xs text-muted">
+                      Click any thumbnail to preview and compare. Process individual files or batch download all as a ZIP.
+                    </p>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {files.map((file, index) => {
-                  const result = results.find((r) => r.originalName === file.name);
-                  return (
-                    <FileThumb
-                      key={`${file.name}-${index}`}
-                      file={file}
-                      isSelected={index === selectedIndex}
-                      onSelect={() => setSelectedIndex(index)}
-                      onRemove={() => removeFile(index)}
-                      result={result}
-                      isProcessing={downloadState === 'processing'}
-                      onDownload={result ? () => downloadSingle(result) : undefined}
-                      onCopy={result ? () => copyImageToClipboard(result.dataBase64) : undefined}
-                    />
-                  );
-                })}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {files.map((file, index) => {
+                    const result = results.find((r) => r.originalName === file.name);
+                    return (
+                      <FileThumb
+                        key={`${file.name}-${index}`}
+                        file={file}
+                        isSelected={index === selectedIndex}
+                        onSelect={() => setSelectedIndex(index)}
+                        onRemove={() => removeImageAndResult(index)}
+                        result={result}
+                        isProcessing={downloadState === 'processing'}
+                        onDownload={result ? () => downloadSingle(result) : undefined}
+                        onCopy={result ? () => copyImageToClipboard(result.dataBase64) : undefined}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
