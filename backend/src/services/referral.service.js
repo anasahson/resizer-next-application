@@ -161,16 +161,16 @@ async function getTopReferrers(limit = 10) {
        FROM referrals r
        LEFT JOIN User u ON r.referrer_id = u.id
        LEFT JOIN referral_clicks rc ON r.referrer_id = rc.referrer_id
-       GROUP BY r.referrer_id
+       GROUP BY r.referrer_id, r.referral_code, r.commission_earned, r.referral_count, u.name, u.email
        ORDER BY r.commission_earned DESC
        LIMIT ?`,
-      [limit]
+      [parseInt(limit, 10) || 10]
     );
 
     return rows;
   } catch (error) {
     console.error('Error fetching top referrers:', error);
-    throw error;
+    return [];
   }
 }
 

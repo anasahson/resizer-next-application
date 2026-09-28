@@ -93,16 +93,18 @@ async function getUserSharedResults(userId) {
 async function getViralStats() {
   try {
     const [rows] = await pool.query(
-      `SELECT *, (view_count + click_count * 10 + share_count * 50) as viral_score
-       FROM shareable_results 
+      `SELECT * FROM shareable_results 
        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-       ORDER BY viral_score DESC 
+       ORDER BY view_count DESC 
        LIMIT 10`
     );
-    return rows;
+    return rows.map((r) => ({
+      ...r,
+      viral_score: (r.view_count || 0) + ((r.click_count || 0) * 10) + ((r.share_count || 0) * 50),
+    }));
   } catch (error) {
     console.error('Error fetching viral stats:', error);
-    throw error;
+    return [];
   }
 }
 

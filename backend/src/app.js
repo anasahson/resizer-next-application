@@ -25,18 +25,39 @@ if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
 
 const normalizeOrigin = (value) => (value || '').trim().replace(/\/+$/, '');
 
-const allowedOrigins = [
-  ...(process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
+const configuredOrigins = [
+  ...(process.env.CORS_ORIGIN || '').split(','),
   process.env.FRONTEND_URL || '',
 ]
   .map(normalizeOrigin)
   .filter(Boolean);
 
+const defaultLocalOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+];
+
+const allowedOrigins = Array.from(new Set([...configuredOrigins, ...defaultLocalOrigins]));
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const normalized = normalizeOrigin(origin);
+  if (allowedOrigins.includes(normalized)) return true;
+  // Always permit local development origins on any port
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalized)) {
+    return true;
+  }
+  return false;
+};
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(normalizeOrigin(origin))) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
       return callback(null, false);
@@ -44,6 +65,7 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Content-Disposition', 'X-Original-Size', 'X-Processed-Size', 'X-Processing-Time-Ms'],
+    credentials: true,
   })
 );
 
@@ -69,15 +91,47 @@ app.get('/', (req, res) => {
     name: 'Resizer API Engine',
     status: 'online',
     version: '1.0.0',
+    documentation: 'https://resizora.com',
     endpoints: {
       health: 'GET /api/health',
+      images: {
+        batch: 'POST /api/images/batch (multipart/form-data with "images" field, or GET for docs)',
+        process: 'POST /api/images/process (multipart/form-data with "image" field, or GET for docs)',
+        metadata: 'POST /api/images/metadata (multipart/form-data with "image" field, or GET for docs)',
+      },
       auth: {
         login: 'POST /api/auth/login',
         register: 'POST /api/auth/register',
         profile: 'GET /api/auth/me',
         updateProfile: 'PATCH /api/auth/profile',
       },
-      blog: 'GET /api/blog/posts',
+      dashboard: {
+        stats: 'GET /api/dashboard/stats',
+        jobs: 'GET /api/dashboard/jobs',
+      },
+      blog: {
+        posts: 'GET /api/blog/posts',
+        postBySlug: 'GET /api/blog/posts/:slug',
+      },
+      subscription: {
+        plans: 'GET /api/subscription/plans',
+        current: 'GET /api/subscription/current',
+        checkout: 'POST /api/subscription/checkout',
+      },
+      share: {
+        create: 'POST /api/share/create (or GET for docs)',
+        view: 'GET /api/share/:shareId',
+        viralStats: 'GET /api/share/viral-stats',
+      },
+      referral: {
+        leaderboard: 'GET /api/referral/leaderboard',
+        apply: 'POST /api/referral/apply',
+        stats: 'GET /api/referral/stats',
+      },
+      analytics: {
+        public: 'GET /api/analytics/public',
+        track: 'POST /api/analytics/track-event',
+      },
       admin: {
         posts: '/api/admin/posts',
         aiSettings: '/api/admin/settings/ai',
@@ -105,6 +159,7 @@ app.use((req, res) => {
   res.status(404).json({
     error: 'Not Found',
     message: `Cannot ${req.method} ${req.originalUrl}`,
+    hint: 'Check the requested URL and HTTP method (GET vs POST). Visit GET / for the list of available endpoints.',
   });
 });
 

@@ -8,6 +8,15 @@ const shareController = require('../controllers/share.controller');
 const { authenticateToken, optionalAuth } = require('../middleware/auth.middleware');
 
 // Public & protected routes
+router.get('/create', (req, res) => {
+  res.json({
+    endpoint: '/api/share/create',
+    method: 'POST',
+    description: 'Create a shareable link/card for an image processing result',
+    contentType: 'application/json',
+    body: { imageData: 'object' },
+  });
+});
 router.post('/create', optionalAuth, shareController.handleCreateShare);
 router.get('/user', authenticateToken, shareController.handleGetUserShares);
 router.post('/track-share', shareController.handleTrackShare);

@@ -123,12 +123,26 @@ const initDb = async () => {
         height INT DEFAULT 0,
         compression_time_ms INT DEFAULT 0,
         view_count INT DEFAULT 0,
+        click_count INT DEFAULT 0,
+        share_count INT DEFAULT 0,
+        last_shared_at DATETIME DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME DEFAULT NULL,
         INDEX idx_share_id (share_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `;
     await connection.query(createShareTableQuery);
+
+    // Ensure columns exist if table was created previously without them
+    try {
+      await connection.query(`ALTER TABLE shareable_results ADD COLUMN click_count INT DEFAULT 0`);
+    } catch (_) {}
+    try {
+      await connection.query(`ALTER TABLE shareable_results ADD COLUMN share_count INT DEFAULT 0`);
+    } catch (_) {}
+    try {
+      await connection.query(`ALTER TABLE shareable_results ADD COLUMN last_shared_at DATETIME DEFAULT NULL`);
+    } catch (_) {}
 
     // 7. Initialize referrals and referral_clicks tables
     const createReferralsTableQuery = `
