@@ -111,7 +111,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "google-site-verification-token",
+    google: "m9QsMgKXKbOBqpC5U_izxumkwPTj2cxXrkx8bVzpfBc",
   },
   other: {
     "apple-mobile-web-app-capable": "yes",
