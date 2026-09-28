@@ -27,7 +27,7 @@ interface AuthContextType {
   isLoading: boolean;
   isSuperAdmin: boolean;
   isUser: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; message?: string; user?: User }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   updateProfile: (payload: UpdateProfilePayload) => Promise<{ success: boolean; message?: string; user?: User }>;
   logout: (redirectTo?: string | React.MouseEvent) => void;
@@ -38,7 +38,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
   || 'http://localhost:5000';
+
 export const AUTH_TOKEN_KEYS = {
+  primary: 'resizora_auth_token',
   user: 'resizer_user_auth_token',
   superadmin: 'resizer_superadmin_auth_token',
 } as const;
@@ -63,35 +65,28 @@ export function getUserFromToken(storedToken: string): User | null {
 export function getActiveAuthToken(): { token: string; key: string } | null {
   if (typeof window === 'undefined') return null;
 
-  const isAdminPath = window.location.pathname.startsWith('/admin');
-
-  if (isAdminPath) {
-    // On admin routes, prioritize superadmin credentials
-    const superToken = localStorage.getItem(AUTH_TOKEN_KEYS.superadmin);
-    if (superToken && getUserFromToken(superToken)) {
-      return { token: superToken, key: AUTH_TOKEN_KEYS.superadmin };
-    }
-    const userToken = localStorage.getItem(AUTH_TOKEN_KEYS.user);
-    if (userToken && getUserFromToken(userToken)) {
-      return { token: userToken, key: AUTH_TOKEN_KEYS.user };
-    }
-  } else {
-    // On public/user routes, prioritize user token if present, but fall back to superadmin
-    // so superadmins stay authenticated and are not kicked into login loops
-    const userToken = localStorage.getItem(AUTH_TOKEN_KEYS.user);
-    if (userToken && getUserFromToken(userToken)) {
-      return { token: userToken, key: AUTH_TOKEN_KEYS.user };
-    }
-    const superToken = localStorage.getItem(AUTH_TOKEN_KEYS.superadmin);
-    if (superToken && getUserFromToken(superToken)) {
-      return { token: superToken, key: AUTH_TOKEN_KEYS.superadmin };
-    }
+  // 1. Check primary unified token
+  const primary = localStorage.getItem('resizora_auth_token');
+  if (primary && getUserFromToken(primary)) {
+    return { token: primary, key: 'resizora_auth_token' };
   }
 
-  // Check legacy token keys as fallback
+  // 2. Check superadmin role token
+  const superToken = localStorage.getItem(AUTH_TOKEN_KEYS.superadmin);
+  if (superToken && getUserFromToken(superToken)) {
+    return { token: superToken, key: AUTH_TOKEN_KEYS.superadmin };
+  }
+
+  // 3. Check user role token
+  const userToken = localStorage.getItem(AUTH_TOKEN_KEYS.user);
+  if (userToken && getUserFromToken(userToken)) {
+    return { token: userToken, key: AUTH_TOKEN_KEYS.user };
+  }
+
+  // 4. Check legacy tokens
   const legacyToken = localStorage.getItem('resizer_auth_token') || localStorage.getItem('token');
   if (legacyToken && getUserFromToken(legacyToken)) {
-    return { token: legacyToken, key: AUTH_TOKEN_KEYS.user };
+    return { token: legacyToken, key: 'resizer_auth_token' };
   }
 
   return null;
@@ -106,8 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadUserFromStorage = useCallback(async () => {
     try {
       const active = getActiveAuthToken();
-      localStorage.removeItem('resizer_auth_token');
-      localStorage.removeItem('token');
 
       if (!active) {
         setToken(null);
@@ -116,37 +109,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setToken(active.token);
+      // 1. Immediately hydrate user from valid JWT payload (zero flicker / no false logout)
       const cachedUser = getUserFromToken(active.token);
       if (!cachedUser) {
         localStorage.removeItem(active.key);
+        localStorage.removeItem('resizora_auth_token');
         setToken(null);
         setUser(null);
         setIsLoading(false);
         return;
       }
+
+      setToken(active.token);
       setUser(cachedUser);
       setIsLoading(false);
 
-      const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${active.token}`,
-        },
-      });
+      // 2. Attempt to verify profile against backend
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${active.token}`,
+          },
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          setUser(data.user);
-        } else {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.user) {
+            setUser(data.user);
+          }
+        } else if (res.status === 401) {
+          // Token is strictly rejected as expired or invalid by server
+          localStorage.removeItem('resizora_auth_token');
           localStorage.removeItem(active.key);
           setToken(null);
           setUser(null);
         }
-      } else {
-        localStorage.removeItem(active.key);
-        setToken(null);
-        setUser(null);
+      } catch (networkErr) {
+        // Network error or backend temporarily offline: preserve session from valid JWT!
+        console.warn('Backend /api/auth/me unreachable, keeping session from JWT payload');
       }
     } catch (err) {
       console.warn('Failed to load user profile:', err);
@@ -176,10 +176,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(data.user);
       setToken(data.token);
-      const tokenKey = data.user.role === 'superadmin' ? AUTH_TOKEN_KEYS.superadmin : AUTH_TOKEN_KEYS.user;
-      localStorage.setItem(tokenKey, data.token);
 
-      return { success: true, message: data.message };
+      // Store in primary unified token key
+      localStorage.setItem('resizora_auth_token', data.token);
+
+      // Also set role-specific key for backward compatibility
+      if (data.user.role === 'superadmin') {
+        localStorage.setItem(AUTH_TOKEN_KEYS.superadmin, data.token);
+      } else {
+        localStorage.setItem(AUTH_TOKEN_KEYS.user, data.token);
+      }
+
+      return { success: true, message: data.message, user: data.user };
     } catch (err: any) {
       return { success: false, message: err.message || 'Network error during login.' };
     }
@@ -244,6 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout handler
   const logout = (redirectTo?: string | React.MouseEvent) => {
+    localStorage.removeItem('resizora_auth_token');
     localStorage.removeItem(AUTH_TOKEN_KEYS.superadmin);
     localStorage.removeItem(AUTH_TOKEN_KEYS.user);
     localStorage.removeItem('resizer_auth_token');

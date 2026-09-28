@@ -23,18 +23,23 @@ if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
   throw new Error('CORS_ORIGIN must be configured in production.');
 }
 
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
-  : ['http://localhost:3000'];
+const normalizeOrigin = (value) => (value || '').trim().replace(/\/+$/, '');
+
+const allowedOrigins = [
+  ...(process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
+  process.env.FRONTEND_URL || '',
+]
+  .map(normalizeOrigin)
+  .filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      if (allowedOrigins.includes(normalizeOrigin(origin))) {
         return callback(null, true);
       }
-      return callback(new Error('Origin is not allowed by CORS policy.'));
+      return callback(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -42,7 +47,9 @@ app.use(
   })
 );
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(morgan('dev'));
 app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));

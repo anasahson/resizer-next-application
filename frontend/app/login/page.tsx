@@ -37,6 +37,12 @@ export default function LoginPage() {
           return;
         }
 
+        // Redirect SuperAdmin directly to Control Center, standard user to Dashboard
+        if (result.user?.role === 'superadmin') {
+          router.push('/admin/control-center');
+          return;
+        }
+
         router.push('/dashboard');
       }, 700);
     } else {

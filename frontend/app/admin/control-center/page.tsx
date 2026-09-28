@@ -399,7 +399,7 @@ export default function SuperAdminControlCenterPage() {
           </div>
           <div className="pt-2 flex flex-col gap-2.5">
             <Link
-              href="/login"
+              href="/login?redirect=/admin/control-center"
               className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-all"
             >
               Sign In with SuperAdmin Credentials

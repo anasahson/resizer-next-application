@@ -9,9 +9,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        value: https://resizora-anas-projects-ca17eb8b.vercel.app
+        value: https://resizer-pi-tan.vercel.app,https://resizora-anas-projects-ca17eb8b.vercel.app
       - key: FRONTEND_URL
-        value: https://resizora-anas-projects-ca17eb8b.vercel.app
+        value: https://resizer-pi-tan.vercel.app
       - key: MAX_FILE_SIZE_MB
         value: 50
       - key: DB_HOST
