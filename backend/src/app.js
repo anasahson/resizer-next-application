@@ -85,62 +85,159 @@ const authLimiter = rateLimit({
   message: { error: 'TooManyRequests', message: 'Too many authentication attempts. Please try again later.' },
 });
 
-// Root API welcome route
-app.get('/', (req, res) => {
-  res.json({
-    name: 'Resizer API Engine',
-    status: 'online',
-    version: '1.0.0',
-    documentation: 'https://resizora.com',
-    endpoints: {
-      health: 'GET /api/health',
-      images: {
-        batch: 'POST /api/images/batch (multipart/form-data with "images" field, or GET for docs)',
-        process: 'POST /api/images/process (multipart/form-data with "image" field, or GET for docs)',
-        metadata: 'POST /api/images/metadata (multipart/form-data with "image" field, or GET for docs)',
-      },
-      auth: {
-        login: 'POST /api/auth/login',
-        register: 'POST /api/auth/register',
-        profile: 'GET /api/auth/me',
-        updateProfile: 'PATCH /api/auth/profile',
-      },
-      dashboard: {
-        stats: 'GET /api/dashboard/stats',
-        jobs: 'GET /api/dashboard/jobs',
-      },
-      blog: {
-        posts: 'GET /api/blog/posts',
-        postBySlug: 'GET /api/blog/posts/:slug',
-      },
-      subscription: {
-        plans: 'GET /api/subscription/plans',
-        current: 'GET /api/subscription/current',
-        checkout: 'POST /api/subscription/checkout',
-      },
-      share: {
-        create: 'POST /api/share/create (or GET for docs)',
-        view: 'GET /api/share/:shareId',
-        viralStats: 'GET /api/share/viral-stats',
-      },
-      referral: {
-        leaderboard: 'GET /api/referral/leaderboard',
-        apply: 'POST /api/referral/apply',
-        stats: 'GET /api/referral/stats',
-      },
-      analytics: {
-        public: 'GET /api/analytics/public',
-        track: 'POST /api/analytics/track-event',
-      },
-      admin: {
-        posts: '/api/admin/posts',
-        aiSettings: '/api/admin/settings/ai',
-        aiGeneratePost: 'POST /api/admin/ai/generate-post',
-        aiGenerateImage: 'POST /api/admin/ai/generate-image',
-      },
+const getApiData = () => ({
+  name: 'Resizer API Engine',
+  status: 'online',
+  version: '1.0.0',
+  documentation: 'https://resizora.com',
+  endpoints: {
+    health: { method: 'GET', path: '/api/health', desc: 'System health & database status' },
+    images: {
+      batch: { method: 'POST', path: '/api/images/batch', desc: 'Batch image resize/convert (multipart)', getDocs: true },
+      process: { method: 'POST', path: '/api/images/process', desc: 'Single image resize/convert (multipart)', getDocs: true },
+      metadata: { method: 'POST', path: '/api/images/metadata', desc: 'Extract EXIF & dimensions (multipart)', getDocs: true },
     },
-  });
+    auth: {
+      login: { method: 'POST', path: '/api/auth/login', desc: 'User login & JWT token' },
+      register: { method: 'POST', path: '/api/auth/register', desc: 'User account creation' },
+      profile: { method: 'GET', path: '/api/auth/me', desc: 'Current user profile (Auth required)' },
+      updateProfile: { method: 'PATCH', path: '/api/auth/profile', desc: 'Update profile details (Auth required)' },
+    },
+    dashboard: {
+      stats: { method: 'GET', path: '/api/dashboard/stats', desc: 'Live metrics & compression volume' },
+      jobs: { method: 'GET', path: '/api/dashboard/jobs', desc: 'Recent processed jobs log' },
+    },
+    blog: {
+      posts: { method: 'GET', path: '/api/blog/posts', desc: 'Published articles with pagination' },
+      postBySlug: { method: 'GET', path: '/api/blog/posts/:slug', desc: 'Single article by slug' },
+    },
+    subscription: {
+      plans: { method: 'GET', path: '/api/subscription/plans', desc: 'Available pricing tiers' },
+      current: { method: 'GET', path: '/api/subscription/current', desc: 'Active subscription (Auth required)' },
+      checkout: { method: 'POST', path: '/api/subscription/checkout', desc: 'Create Stripe session (Auth required)' },
+    },
+    share: {
+      create: { method: 'POST', path: '/api/share/create', desc: 'Create viral share card', getDocs: true },
+      view: { method: 'GET', path: '/api/share/:shareId', desc: 'Fetch shareable result' },
+      viralStats: { method: 'GET', path: '/api/share/viral-stats', desc: 'Top shared results leaderboard' },
+    },
+    referral: {
+      leaderboard: { method: 'GET', path: '/api/referral/leaderboard', desc: 'Top affiliate earners' },
+      apply: { method: 'POST', path: '/api/referral/apply', desc: 'Apply referral code' },
+      stats: { method: 'GET', path: '/api/referral/stats', desc: 'Affiliate commission stats' },
+    },
+    analytics: {
+      public: { method: 'GET', path: '/api/analytics/public', desc: 'Platform usage totals' },
+      track: { method: 'POST', path: '/api/analytics/track-event', desc: 'Telemetry event ingestion' },
+    },
+  },
 });
+
+const sendApiIndex = (req, res) => {
+  const data = getApiData();
+  const acceptsHtml = req.accepts('html') && !req.xhr && req.headers['sec-fetch-dest'] === 'document';
+
+  if (acceptsHtml) {
+    const rows = [];
+    Object.entries(data.endpoints).forEach(([cat, val]) => {
+      if (val.method) {
+        rows.push({ cat, ...val });
+      } else {
+        Object.entries(val).forEach(([sub, subVal]) => {
+          rows.push({ cat: `${cat}.${sub}`, ...subVal });
+        });
+      }
+    });
+
+    const methodColor = (m) => {
+      if (m === 'GET') return '#3b82f6';
+      if (m === 'POST') return '#10b981';
+      if (m === 'PATCH' || m === 'PUT') return '#f59e0b';
+      return '#ef4444';
+    };
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resizer API Engine — Developer Portal</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #09090b; color: #f4f4f5; line-height: 1.5; padding: 2rem 1rem; }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { border-bottom: 1px solid #27272a; padding-bottom: 1.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #fafafa; display: flex; align-items: center; gap: 0.5rem; }
+    .badge-status { background: #064e3b; color: #34d399; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; text-transform: uppercase; }
+    .table-card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+    th { background: #27272a; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; color: #a1a1aa; letter-spacing: 0.05em; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #27272a; vertical-align: middle; }
+    tr:hover td { background: #202024; }
+    .method-badge { font-weight: 700; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; display: inline-block; min-width: 48px; text-align: center; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; color: #e4e4e7; }
+    a.path-link { color: #60a5fa; text-decoration: none; font-weight: 500; }
+    a.path-link:hover { text-decoration: underline; }
+    .desc { color: #a1a1aa; }
+    footer { margin-top: 2rem; text-align: center; color: #71717a; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>⚡ Resizer API Engine <span class="badge-status">● Online</span></h1>
+        <p style="color:#a1a1aa; font-size: 0.875rem; margin-top: 0.25rem;">High-performance image processing, conversion, and monetization services</p>
+      </div>
+      <div>
+        <a href="/api/health" style="color: #60a5fa; font-size: 0.875rem; text-decoration: none; border: 1px solid #3b82f6; padding: 0.35rem 0.75rem; border-radius: 6px;">Check Health &rarr;</a>
+      </div>
+    </header>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r) => `
+            <tr>
+              <td>
+                <span class="method-badge" style="background:${methodColor(r.method)}22; color:${methodColor(r.method)}; border:1px solid ${methodColor(r.method)}55;">
+                  ${r.method}
+                </span>
+              </td>
+              <td>
+                <a class="path-link" href="${r.path.replace(/:[a-zA-Z]+/g, 'sample')}">
+                  <code>${r.path}</code>
+                </a>
+              </td>
+              <td class="desc">${r.desc}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <footer>
+      Resizer Engine v1.0.0 &bull; <a href="https://resizora.com" style="color:#71717a;">Resizora</a> &bull; JSON format available via <code>Accept: application/json</code>
+    </footer>
+  </div>
+</body>
+</html>`;
+    return res.send(html);
+  }
+
+  return res.json(data);
+};
+
+// Root & /api welcome routes
+app.get('/', sendApiIndex);
+app.get('/api', sendApiIndex);
 
 // API Routes
 app.use('/api', healthRoutes);

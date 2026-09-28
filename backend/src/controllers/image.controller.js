@@ -1,8 +1,21 @@
 const sharp = require('sharp');
 const { recordJob } = require('../services/job.service');
 
+// Curated social and web platform presets
+const PRESETS = {
+  'instagram-square': { width: 1080, height: 1080, fit: 'cover' },
+  'instagram-portrait': { width: 1080, height: 1350, fit: 'cover' },
+  'instagram-story': { width: 1080, height: 1920, fit: 'cover' },
+  'youtube-thumbnail': { width: 1280, height: 720, fit: 'cover' },
+  'twitter-post': { width: 1200, height: 675, fit: 'cover' },
+  'facebook-cover': { width: 820, height: 312, fit: 'cover' },
+  'linkedin-banner': { width: 1584, height: 396, fit: 'cover' },
+  'favicon': { width: 32, height: 32, fit: 'contain' },
+  'icon-512': { width: 512, height: 512, fit: 'contain' },
+};
+
 /**
- * Extract image metadata (dimensions, format, channels, color space, size)
+ * Extract image metadata (dimensions, format, channels, color space, size, aspect ratio)
  */
 async function getImageMetadata(req, res, next) {
   try {
@@ -11,6 +24,10 @@ async function getImageMetadata(req, res, next) {
     }
 
     const metadata = await sharp(req.file.buffer).metadata();
+    const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+    const divisor = metadata.width && metadata.height ? gcd(metadata.width, metadata.height) : 1;
+    const aspectRatio = metadata.width && metadata.height ? `${metadata.width / divisor}:${metadata.height / divisor}` : null;
+    const megapixels = metadata.width && metadata.height ? ((metadata.width * metadata.height) / 1000000).toFixed(2) : null;
 
     res.json({
       success: true,
@@ -20,12 +37,15 @@ async function getImageMetadata(req, res, next) {
       metadata: {
         width: metadata.width,
         height: metadata.height,
+        aspectRatio,
+        megapixels: megapixels ? `${megapixels} MP` : null,
         format: metadata.format,
         space: metadata.space,
         channels: metadata.channels,
         hasAlpha: metadata.hasAlpha,
         density: metadata.density,
       },
+      availablePresets: Object.keys(PRESETS),
     });
   } catch (error) {
     next(error);
@@ -50,6 +70,8 @@ async function processImage(req, res, next) {
       fit = 'fit',
       format = 'webp',
       quality = 80,
+      preset,
+      scale,
       aiCrop = false,
       maintainRatio = true,
       rotate,
@@ -62,9 +84,33 @@ async function processImage(req, res, next) {
     } = req.body;
 
     targetFormat = (format || 'webp').toLowerCase();
-    const parsedWidth = width ? parseInt(width, 10) : undefined;
-    const parsedHeight = height ? parseInt(height, 10) : undefined;
+    let parsedWidth = width ? parseInt(width, 10) : undefined;
+    let parsedHeight = height ? parseInt(height, 10) : undefined;
     const parsedQuality = quality ? Math.min(100, Math.max(1, parseInt(quality, 10))) : 80;
+
+    // Apply social preset if requested
+    if (preset && PRESETS[preset.toLowerCase()]) {
+      const p = PRESETS[preset.toLowerCase()];
+      if (!parsedWidth) parsedWidth = p.width;
+      if (!parsedHeight) parsedHeight = p.height;
+    }
+
+    // Support percentage scaling (e.g. scale: 50 for 50%, or 200 for 200%)
+    if (scale && (!parsedWidth && !parsedHeight)) {
+      const scaleNum = parseFloat(scale);
+      if (!isNaN(scaleNum) && scaleNum > 0 && scaleNum <= 1000) {
+        const inMeta = await sharp(req.file.buffer).metadata();
+        if (inMeta.width && inMeta.height) {
+          const factor = scaleNum > 5 ? scaleNum / 100 : scaleNum;
+          parsedWidth = Math.round(inMeta.width * factor);
+          parsedHeight = Math.round(inMeta.height * factor);
+        }
+      }
+    }
+
+    // Safety boundary caps
+    if (parsedWidth) parsedWidth = Math.min(16384, Math.max(1, parsedWidth));
+    if (parsedHeight) parsedHeight = Math.min(16384, Math.max(1, parsedHeight));
 
     let pipeline = sharp(req.file.buffer);
 
@@ -234,6 +280,8 @@ async function processBatch(req, res, next) {
       fit = 'fit',
       format = 'webp',
       quality = 80,
+      preset,
+      scale,
       rotate,
       flip,
       flop,
@@ -243,16 +291,39 @@ async function processBatch(req, res, next) {
       background,
     } = req.body;
 
-    const parsedWidth = width ? parseInt(width, 10) : undefined;
-    const parsedHeight = height ? parseInt(height, 10) : undefined;
+    let baseWidth = width ? parseInt(width, 10) : undefined;
+    let baseHeight = height ? parseInt(height, 10) : undefined;
+    if (preset && PRESETS[preset.toLowerCase()]) {
+      const p = PRESETS[preset.toLowerCase()];
+      if (!baseWidth) baseWidth = p.width;
+      if (!baseHeight) baseHeight = p.height;
+    }
+
     const parsedQuality = quality ? Math.min(100, Math.max(1, parseInt(quality, 10))) : 80;
 
     const results = await Promise.all(
       req.files.map(async (file) => {
         const itemStartTime = Date.now();
         const targetFormat = (format || 'webp').toLowerCase();
+        let itemWidth = baseWidth;
+        let itemHeight = baseHeight;
 
         try {
+          if (scale && (!itemWidth && !itemHeight)) {
+            const scaleNum = parseFloat(scale);
+            if (!isNaN(scaleNum) && scaleNum > 0 && scaleNum <= 1000) {
+              const inMeta = await sharp(file.buffer).metadata();
+              if (inMeta.width && inMeta.height) {
+                const factor = scaleNum > 5 ? scaleNum / 100 : scaleNum;
+                itemWidth = Math.round(inMeta.width * factor);
+                itemHeight = Math.round(inMeta.height * factor);
+              }
+            }
+          }
+
+          if (itemWidth) itemWidth = Math.min(16384, Math.max(1, itemWidth));
+          if (itemHeight) itemHeight = Math.min(16384, Math.max(1, itemHeight));
+
           let pipeline = sharp(file.buffer);
 
           // Rotation & Flips
@@ -277,10 +348,10 @@ async function processBatch(req, res, next) {
             pipeline = pipeline.sharpen();
           }
 
-          if (parsedWidth || parsedHeight) {
+          if (itemWidth || itemHeight) {
             const resizeOpts = {
-              width: parsedWidth,
-              height: parsedHeight,
+              width: itemWidth,
+              height: itemHeight,
               fit: fit === 'fill' ? 'cover' : fit === 'stretch' ? 'fill' : 'inside',
             };
             if (background) {

@@ -9,6 +9,18 @@ const { authenticateToken, requireRole } = require('../middleware/auth.middlewar
 
 // Public analytics
 router.get('/public', analyticsController.handleGetPublicAnalytics);
+router.get('/track-event', (req, res) => {
+  res.json({
+    endpoint: '/api/analytics/track-event',
+    method: 'POST',
+    description: 'Track custom front-end telemetry and user interaction events',
+    contentType: 'application/json',
+    body: {
+      eventType: 'string (required)',
+      metadata: 'object (optional)',
+    },
+  });
+});
 router.post('/track-event', analyticsController.handleTrackEvent);
 
 // Admin only
