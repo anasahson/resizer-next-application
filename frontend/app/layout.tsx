@@ -253,13 +253,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        <meta name="google-site-verification" content="m9QsMgKXKbOBqpC5U_izxumkwPTj2cxXrkx8bVzpfBc" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
-        />
-      </head>
+    
       <body className="min-h-full flex flex-col bg-surface text-primary dark:bg-zinc-950 dark:text-white transition-colors duration-300">
         <AuthProvider>
           <Navbar />
