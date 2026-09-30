@@ -110,9 +110,7 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  verification: {
-    google: "m9QsMgKXKbOBqpC5U_izxumkwPTj2cxXrkx8bVzpfBc",
-  },
+  
   other: {
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
@@ -253,7 +251,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-    
+
       <body className="min-h-full flex flex-col bg-surface text-primary dark:bg-zinc-950 dark:text-white transition-colors duration-300">
         <AuthProvider>
           <Navbar />
