@@ -2,3 +2,7 @@ node_modules
 npm-debug.log
 .git
 .env.local
+# Never bake secrets into the image: env_file / platform env vars supply them.
+# (A stale .env inside the image also silently shadows later .env edits.)
+.env
+.env.*

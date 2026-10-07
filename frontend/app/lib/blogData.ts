@@ -448,16 +448,52 @@ export async function getLivePostBySlug(slug: string): Promise<BlogPost | undefi
   try {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
     const res = await fetch(`${apiBase}/blog/posts/${slug}`, { cache: 'no-store' });
+    if (res.status === 404) {
+      // The post was explicitly deleted or does not exist in DB
+      return undefined;
+    }
     if (res.ok) {
       const data = await res.json();
       if (data.success && data.data) {
-        return data.data;
+        const post = data.data;
+        // Defensive normalization to prevent any render crash
+        const content = post.content && typeof post.content === 'object' ? post.content : {};
+        const safeSections = Array.isArray(content.sections) ? content.sections : [];
+        const safeTakeaways = Array.isArray(content.takeaways) ? content.takeaways : [];
+        const safeFaqs = Array.isArray(content.faqs)
+          ? content.faqs
+          : Array.isArray(post.faqs)
+          ? post.faqs
+          : [];
+        const safeTags = Array.isArray(post.tags) ? post.tags : [];
+        const author = post.author && typeof post.author === 'object' ? post.author : {};
+
+        return {
+          ...post,
+          tags: safeTags,
+          date: post.date || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          isoDate: post.isoDate || new Date().toISOString(),
+          author: {
+            name: author.name || 'Resizer Engineering',
+            role: author.role || 'Staff Writer',
+            avatar: author.avatar || (author.name ? author.name.charAt(0) : 'R'),
+            bio: author.bio || `${author.name || 'Resizer Team'} is a technical contributor focusing on media optimization and performance architecture.`,
+          },
+          content: {
+            overview: content.overview || post.excerpt || '',
+            sections: safeSections,
+            takeaways: safeTakeaways,
+            faqs: safeFaqs,
+          },
+        };
       }
     }
   } catch (_) {}
-  return undefined;
+
+  // Only fallback to static if offline during build
+  return getPostBySlug(slug);
 }
 
 export function getAllPostSlugs(): string[] {
-  return [];
+  return BLOG_POSTS.map((p) => p.slug);
 }

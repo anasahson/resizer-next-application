@@ -1,9 +1,10 @@
 // app/page.tsx
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback, type ChangeEvent, type DragEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, useSyncExternalStore, type ChangeEvent, type DragEvent } from 'react';
 import Link from 'next/link';
 import JSZip from 'jszip';
+import { uploadQueue, type QueueSnapshot } from './lib/uploadQueue';
 import {
   Upload,
   Download,
@@ -33,6 +34,7 @@ import {
   Unlock,
   Zap,
   ChevronDown,
+  Clock,
   ShieldCheck,
   ArrowRight,
   Plus,
@@ -41,6 +43,26 @@ import {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
   || 'http://localhost:5000';
+
+// Canonical public origin — used for structured data so schema.org URLs match
+// the real domain (they previously claimed resizer.io, a different site).
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
+
+// Fallback dimensions used before any image has been probed (and after a reset).
+const INITIAL_ORIGINAL_WIDTH = 1920;
+const INITIAL_ORIGINAL_HEIGHT = 1080;
+
+// No-op subscription for the one-shot camera-capability probe below.
+const subscribeNoop = () => () => {};
+
+/** Client-only probe for real camera support — never evaluated during SSR. */
+function detectCameraSupport(): boolean {
+  const input = document.createElement('input');
+  const hasCapture = 'capture' in input;
+  const hasCameraApi = Boolean(navigator.mediaDevices?.getUserMedia);
+  const secure = window.isSecureContext || location.hostname === 'localhost';
+  return hasCapture && (hasCameraApi || secure);
+}
 
 interface ProcessedResult {
   filename: string;
@@ -61,6 +83,8 @@ function FileImage({ file, className }: { file: File; className?: string }) {
 
   useEffect(() => {
     const objectUrl = URL.createObjectURL(file);
+    // Object URLs only exist in the browser, so the state has to be set here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
@@ -177,7 +201,7 @@ interface PresetItem {
   w: number;
   h: number;
   name: string;
-  category: 'social' | 'ecommerce' | 'devices';
+  category: 'social' | 'ecommerce' | 'devices' | 'print';
   badge?: string;
 }
 
@@ -186,7 +210,7 @@ export default function Resizer() {
   const [files, setFiles] = useState<File[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [currentPreset, setCurrentPreset] = useState<string | null>('instagram-post');
-  const [presetCategory, setPresetCategory] = useState<'social' | 'ecommerce' | 'devices'>('social');
+  const [presetCategory, setPresetCategory] = useState<'social' | 'ecommerce' | 'devices' | 'print'>('social');
   const [maintainRatio, setMaintainRatio] = useState(true);
   const [fitMode, setFitMode] = useState<'fit' | 'fill' | 'stretch' | 'contain'>('fit');
   const [aiCrop, setAiCrop] = useState(false);
@@ -204,6 +228,18 @@ export default function Resizer() {
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [targetMaxKb, setTargetMaxKb] = useState<number | null>(null);
   const [filenameSuffix, setFilenameSuffix] = useState<string>('_optimized');
+  const [dimCategory, setDimCategory] = useState<'all' | 'social' | 'web' | 'ecommerce' | 'print'>('all');
+  const [dimSearch, setDimSearch] = useState<string>('');
+  // Camera capture is only offered when the device can actually take a photo.
+  // Desktop browsers expose the `capture` attribute but just open a file
+  // dialog, so the button is hidden when there is no camera API available.
+  // useSyncExternalStore keeps this SSR-safe: the server snapshot is false and
+  // the capability is re-read client-side without a cascading setState.
+  const cameraSupported = useSyncExternalStore(subscribeNoop, detectCameraSupport, () => false);
+
+const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
+    jobs: [], total: 0, queued: 0, uploading: 0, done: 0, failed: 0, busy: false,
+  });
 
   // ===== TRANSFORMATIONS (ROTATE, FLIP, ADJUSTMENTS) =====
   const [rotate, setRotate] = useState<number>(0);
@@ -233,8 +269,8 @@ export default function Resizer() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [rightPanelMode, setRightPanelMode] = useState<'settings' | 'results'>('settings');
 
-  const originalWidthRef = useRef(1920);
-  const originalHeightRef = useRef(1080);
+  const originalWidthRef = useRef(INITIAL_ORIGINAL_WIDTH);
+  const originalHeightRef = useRef(INITIAL_ORIGINAL_HEIGHT);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const afterPreviewRef = useRef<HTMLDivElement>(null);
@@ -242,20 +278,43 @@ export default function Resizer() {
 
   // ===== PRESETS =====
   const presets: Record<string, PresetItem> = {
+    // Social Media
     'instagram-post': { w: 1080, h: 1080, name: 'Instagram Square', category: 'social', badge: '1:1' },
     'instagram-story': { w: 1080, h: 1920, name: 'Instagram Story / Reel', category: 'social', badge: '9:16' },
+    'instagram-portrait': { w: 1080, h: 1350, name: 'Instagram Portrait', category: 'social', badge: '4:5' },
+    youtube: { w: 1280, h: 720, name: 'YouTube Thumbnail', category: 'social', badge: '16:9' },
+    'youtube-banner': { w: 2560, h: 1440, name: 'YouTube Channel Banner', category: 'social', badge: '16:9' },
+    tiktok: { w: 1080, h: 1920, name: 'TikTok Video / Story', category: 'social', badge: '9:16' },
+    facebook: { w: 1200, h: 630, name: 'Facebook Post / Landscape', category: 'social', badge: '1.9:1' },
+    'facebook-cover': { w: 820, h: 312, name: 'Facebook Cover Photo', category: 'social', badge: 'Cover' },
     twitter: { w: 1200, h: 675, name: 'X / Twitter Post', category: 'social', badge: '16:9' },
-    facebook: { w: 1200, h: 630, name: 'Facebook Cover', category: 'social', badge: '1.9:1' },
-    youtube: { w: 1280, h: 720, name: 'YouTube Thumbnail', category: 'social', badge: 'HD' },
-    linkedin: { w: 1200, h: 627, name: 'LinkedIn Banner', category: 'social', badge: 'Banner' },
-    tiktok: { w: 1080, h: 1920, name: 'TikTok Video', category: 'social', badge: '9:16' },
-    amazon: { w: 2000, h: 2000, name: 'Amazon Product', category: 'ecommerce', badge: 'Hi-Res' },
-    shopify: { w: 2048, h: 2048, name: 'Shopify Square', category: 'ecommerce', badge: 'Square' },
-    etsy: { w: 2000, h: 1500, name: 'Etsy Listing', category: 'ecommerce', badge: '4:3' },
+    'twitter-header': { w: 1500, h: 500, name: 'X / Twitter Header Banner', category: 'social', badge: '3:1' },
+    linkedin: { w: 1200, h: 627, name: 'LinkedIn Post / Share', category: 'social', badge: '1.9:1' },
+    'linkedin-banner': { w: 1584, h: 396, name: 'LinkedIn Company Banner', category: 'social', badge: '4:1' },
+    pinterest: { w: 1000, h: 1500, name: 'Pinterest Standard Pin', category: 'social', badge: '2:3' },
+
+    // E-Commerce & Web
+    amazon: { w: 2000, h: 2000, name: 'Amazon Product (Hi-Res)', category: 'ecommerce', badge: '1:1' },
+    shopify: { w: 2048, h: 2048, name: 'Shopify Product Square', category: 'ecommerce', badge: '1:1' },
+    etsy: { w: 2000, h: 1500, name: 'Etsy Item Listing', category: 'ecommerce', badge: '4:3' },
+    ebay: { w: 1600, h: 1600, name: 'eBay Gallery Photo', category: 'ecommerce', badge: '1:1' },
     banner: { w: 1920, h: 600, name: 'Hero Web Banner', category: 'ecommerce', badge: '3.2:1' },
-    'screen-4k': { w: 3840, h: 2160, name: '4K Ultra HD', category: 'devices', badge: '4K' },
-    'screen-fhd': { w: 1920, h: 1080, name: 'Full HD 1080p', category: 'devices', badge: '1080p' },
-    avatar: { w: 512, h: 512, name: 'Avatar / App Icon', category: 'devices', badge: 'Icon' },
+    'blog-featured': { w: 1200, h: 630, name: 'Blog Featured Image', category: 'ecommerce', badge: '16:9' },
+
+    // Screens & Devices
+    'screen-4k': { w: 3840, h: 2160, name: '4K Ultra HD Display', category: 'devices', badge: '4K' },
+    'screen-fhd': { w: 1920, h: 1080, name: 'Full HD 1080p Standard', category: 'devices', badge: '1080p' },
+    'screen-2k': { w: 2560, h: 1440, name: '2K QHD Display', category: 'devices', badge: '1440p' },
+    'screen-hd': { w: 1280, h: 720, name: '720p HD Standard', category: 'devices', badge: '720p' },
+    avatar: { w: 512, h: 512, name: 'Avatar / Profile / App Icon', category: 'devices', badge: 'Icon' },
+    favicon: { w: 32, h: 32, name: 'Favicon 32×32 Icon', category: 'devices', badge: 'Favicon' },
+
+    // Passport & Print
+    'passport-us': { w: 600, h: 600, name: 'US Passport Photo (2×2")', category: 'print', badge: 'Passport' },
+    'passport-schengen': { w: 413, h: 531, name: 'Schengen / EU / UK Passport', category: 'print', badge: 'Passport' },
+    'print-a4': { w: 2480, h: 3508, name: 'A4 Document (300 DPI)', category: 'print', badge: 'A4' },
+    'print-4x6': { w: 1200, h: 1800, name: 'Photo Print 4×6" (300 DPI)', category: 'print', badge: '4×6' },
+    'print-5x7': { w: 1500, h: 2100, name: 'Photo Print 5×7" (300 DPI)', category: 'print', badge: '5×7' },
   };
 
   // ===== TOAST HELPER =====
@@ -374,22 +433,37 @@ export default function Resizer() {
   };
 
   // Import Image from URL
+  // Fetched through the backend proxy: a direct browser fetch fails with
+  // "Failed to fetch" for most hosts because they send no CORS headers.
   const handleImportUrl = async () => {
-    if (!urlInput.trim()) return;
+    const target = urlInput.trim();
+    if (!target) return;
     setUrlLoading(true);
     try {
-      const response = await fetch(urlInput.trim());
-      if (!response.ok) throw new Error('Could not fetch image from this URL.');
-      const blob = await response.blob();
+      const res = await fetch(`${BACKEND_URL}/api/images/fetch-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: target }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Import failed (HTTP ${res.status}).`);
+      }
+
+      const blob = await res.blob();
       if (!blob.type.startsWith('image/')) throw new Error('URL does not point to a valid image.');
-      const ext = blob.type.split('/')[1] || 'jpg';
+      const ext = (blob.type.split('/')[1] || 'jpg').replace('+xml', '');
       const file = new File([blob], `imported_${Date.now()}.${ext}`, { type: blob.type });
       processFiles([file]);
+      // Save the imported image straight away — it should not have to wait for
+      // the Process button to be hosted.
+      uploadQueue.enqueue({ id: `url-import-${Date.now()}`, filename: file.name, blob, source: 'url-import' });
       setShowUrlModal(false);
       setUrlInput('');
-      showToast('Image imported successfully!');
-    } catch (err: any) {
-      showToast(err?.message || 'Failed to import from URL. (CORS restriction)', 'error');
+      showToast('Image imported — hosting it now…');
+    } catch (err) {
+      showToast(err instanceof Error && err.message ? err.message : 'Could not import that URL.', 'error');
     } finally {
       setUrlLoading(false);
     }
@@ -453,10 +527,13 @@ export default function Resizer() {
     setMaintainRatio((prev) => !prev);
   };
 
-  // Keep height in sync when ratio is enabled
+  // Keep height in sync when ratio is enabled. The width/height handlers keep
+  // the pair consistent during edits; this effect covers toggling the lock and
+  // the original dimensions arriving after an image probe.
   useEffect(() => {
     if (maintainRatio && originalDims && originalDims.h > 0) {
       const ratio = originalDims.w / originalDims.h;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHeight(Math.max(1, Math.round(width / ratio)));
     }
   }, [maintainRatio, originalDims, width]);
@@ -599,16 +676,34 @@ export default function Resizer() {
       setDownloadState('done');
       setRightPanelMode('results');
       showToast(`Optimization complete! ${successful.length} image(s) processed.`);
+
+      // Host every processed image automatically — the queue keeps only a
+      // couple of uploads in flight so bursts of traffic don't overwhelm the
+      // image API, and retries transient failures with backoff.
+      successful.forEach((r, i) => {
+        const base = r.originalName.replace(/\.[^/.]+$/, '');
+        uploadQueue.enqueue({
+          id: `${Date.now()}-${selectedIndex}-${i}-${base}`,
+          filename: `${base}${filenameSuffix}.${r.format || 'webp'}`,
+          dataUrl: r.dataBase64,
+          source: 'system-file',
+        });
+      });
+
       // Auto-scroll to preview after processing
       requestAnimationFrame(() => {
         afterPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
-    } catch (err: any) {
-      setProcessingError(err?.message || 'Failed to process images. Is the backend running on port 5000?');
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : '';
+      setProcessingError(message || 'Failed to process images. Is the backend running on port 5000?');
       setDownloadState('idle');
-      showToast(err?.message || 'Processing error', 'error');
+      showToast(message || 'Processing error', 'error');
     }
-  }, [downloadState, files, width, height, format, quality, fitMode, maintainRatio, aiCrop, rotate, flipH, flipV, filterPreset, blurVal, sharpen, usePadColor, padColor, showToast]);
+  }, [downloadState, files, width, height, format, quality, fitMode, maintainRatio, aiCrop, rotate, flipH, flipV, filterPreset, blurVal, sharpen, usePadColor, padColor, showToast, selectedIndex, filenameSuffix]);
+
+  // Live view of the auto-upload queue.
+  useEffect(() => uploadQueue.subscribe(setHostQueue), []);
 
   const downloadSingle = (result: ProcessedResult, fileIndex?: number) => {
     const ext = result.format || 'webp';
@@ -674,31 +769,47 @@ export default function Resizer() {
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
       showToast('ZIP archive downloaded successfully!');
-    } catch (err: any) {
-      showToast(`Failed to create ZIP: ${err.message}`, 'error');
+    } catch (err) {
+      showToast(`Failed to create ZIP: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
   };
 
   // Copy Image to Clipboard
   const copyImageToClipboard = async (dataBase64: string) => {
     try {
+      if (!dataBase64) {
+        showToast('No image data to copy', 'error');
+        return;
+      }
       const res = await fetch(dataBase64);
       const blob = await res.blob();
-      let pngBlob = blob;
+      let pngBlob: Blob = blob;
       if (blob.type !== 'image/png') {
         const img = new Image();
+        img.crossOrigin = 'anonymous';
         img.src = dataBase64;
-        await new Promise((resolve) => { img.onload = resolve; });
+        await new Promise((resolve, reject) => {
+          img.onload = () => resolve(null);
+          img.onerror = () => reject(new Error('Failed to load image for canvas'));
+        });
+        const w = Math.max(1, img.naturalWidth || img.width || 100);
+        const h = Math.max(1, img.naturalHeight || img.height || 100);
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0);
-        pngBlob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+        if (!ctx) throw new Error('Could not get 2D canvas context');
+        ctx.drawImage(img, 0, 0, w, h);
+        const generatedBlob = await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob((b) => resolve(b), 'image/png');
+        });
+        if (!generatedBlob) throw new Error('Canvas conversion to PNG blob returned null');
+        pngBlob = generatedBlob;
       }
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
       showToast('Copied optimized image to clipboard!');
-    } catch {
+    } catch (err) {
+      console.warn('Clipboard copy error:', err);
       showToast('Could not copy image directly. (Browser permission)', 'error');
     }
   };
@@ -770,6 +881,8 @@ export default function Resizer() {
     setFiles([]);
     setSelectedIndex(0);
     setOriginalDims(null);
+    originalWidthRef.current = INITIAL_ORIGINAL_WIDTH;
+    originalHeightRef.current = INITIAL_ORIGINAL_HEIGHT;
     setCurrentPreset(null);
     setPendingPreset(null);
     setResults([]);
@@ -806,8 +919,10 @@ export default function Resizer() {
   }, [width, height]);
 
   const estimated = useMemo(() => {
-    const origW = originalDims?.w || originalWidthRef.current;
-    const origH = originalDims?.h || originalHeightRef.current;
+    // Refs mirror these dimensions but may only be read from event handlers,
+    // so render uses the same fallback constants the refs are initialised with.
+    const origW = originalDims?.w || INITIAL_ORIGINAL_WIDTH;
+    const origH = originalDims?.h || INITIAL_ORIGINAL_HEIGHT;
     const origPx = origW * origH;
     const newPx = width * height;
     const pixelRatio = newPx / origPx;
@@ -838,33 +953,64 @@ export default function Resizer() {
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
             '@context': 'https://schema.org',
-            '@type': 'WebApplication',
-            name: 'Resizer.io',
-            url: 'https://resizer.io',
-            description:
-              'Free online image resizer, compressor and converter. Resize, compress and convert images to WebP, AVIF, JPG, PNG — no upload required, 100% private.',
-            applicationCategory: 'MultimediaApplication',
-            operatingSystem: 'Any',
-            browserRequirements: 'Requires JavaScript',
-            offers: {
-              '@type': 'Offer',
-              price: '0',
-              priceCurrency: 'USD',
-            },
-            featureList: [
-              'Batch resize up to 50 images',
-              'Convert to WebP, AVIF, JPG, PNG',
-              'Compress images up to 85%',
-              'No image upload required — runs in browser',
-              'Before/after split-screen comparison',
-              'Social media preset sizes',
+            '@graph': [
+              {
+                '@type': 'WebApplication',
+                '@id': `${SITE_URL}/#app`,
+                name: 'Resizora Image Studio',
+                url: `${SITE_URL}/`,
+                description:
+                  'Free online image resizer, compressor and converter. Resize, compress and convert images to WebP, AVIF, JPG, PNG — no upload required, 100% private.',
+                applicationCategory: 'MultimediaApplication',
+                operatingSystem: 'Any',
+                browserRequirements: 'Requires JavaScript',
+                inLanguage: 'en-US',
+                isAccessibleForFree: true,
+                publisher: { '@id': `${SITE_URL}/#org` },
+                offers: {
+                  '@type': 'Offer',
+                  price: '0',
+                  priceCurrency: 'USD',
+                },
+                featureList: [
+                  'Batch resize up to 50 images',
+                  'Convert to WebP, AVIF, JPG, PNG',
+                  'Compress images up to 85%',
+                  'No image upload required — runs in browser',
+                  'Before/after split-screen comparison',
+                  'Social media preset sizes',
+                ],
+              },
+              {
+                '@type': 'Organization',
+                '@id': `${SITE_URL}/#org`,
+                name: 'Resizora',
+                url: `${SITE_URL}/`,
+                logo: { '@type': 'ImageObject', url: `${SITE_URL}/og-image.png`, width: 1200, height: 630 },
+              },
+              {
+                '@type': 'WebSite',
+                '@id': `${SITE_URL}/#website`,
+                url: `${SITE_URL}/`,
+                name: 'Resizora',
+                publisher: { '@id': `${SITE_URL}/#org` },
+                inLanguage: 'en-US',
+                potentialAction: {
+                  '@type': 'SearchAction',
+                  target: {
+                    '@type': 'EntryPoint',
+                    urlTemplate: `${SITE_URL}/blog?q={search_term_string}`,
+                  },
+                  'query-input': 'required name=search_term_string',
+                },
+              },
             ],
           }),
         }}
       />
       {/* ===== HERO SECTION ===== */}
       {files.length === 0 && (
-        <section className="text-center pt-4 pb-10 sm:pt-8">
+        <section data-track-section="hero" className="text-center pt-4 pb-10 sm:pt-8">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold mb-6">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -915,7 +1061,7 @@ export default function Resizer() {
       )}
 
       {/* ===== UPLOAD / EDITOR SECTION ===== */}
-      <div id="resizer-studio" className="scroll-mt-24">
+      <div id="resizer-studio" data-track-section="resizer-studio" className="scroll-mt-24">
         {/* Persistent file inputs mounted at all times for both dropzone & studio */}
         <input
           ref={fileInputRef}
@@ -925,14 +1071,21 @@ export default function Resizer() {
           className="hidden"
           onChange={handleFiles}
         />
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture
-          className="hidden"
-          onChange={handleFiles}
-        />
+        {/* Camera capture — only rendered when the device actually supports it */}
+        {cameraSupported && (
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              handleFiles(e);
+              // Reset so re-opening the camera fires another change event.
+              e.target.value = '';
+            }}
+          />
+        )}
 
         {files.length === 0 ? (
           <div id="uploadState" className="transition-all space-y-5">
@@ -992,14 +1145,16 @@ export default function Resizer() {
                   <LinkIcon className="w-4 h-4 text-blue-500" />
                   <span>Import via URL</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}
-                  className="px-4 py-3 rounded-2xl bg-surface-elevated dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-primary dark:text-zinc-200 text-sm font-semibold border border-border flex items-center gap-2 transition-all hover:scale-105"
-                >
-                  <Camera className="w-4 h-4 text-blue-500" />
-                  <span>Camera</span>
-                </button>
+                {cameraSupported && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}
+                    className="px-4 py-3 rounded-2xl bg-surface-elevated dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-primary dark:text-zinc-200 text-sm font-semibold border border-border flex items-center gap-2 transition-all hover:scale-105"
+                  >
+                    <Camera className="w-4 h-4 text-blue-500" />
+                    <span>Camera</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1370,8 +1525,12 @@ export default function Resizer() {
                       </button>
                     </div>
 
-                    {/* Per-image result actions */}
-                    {results[selectedIndex] && (
+                    {/* Per-image result actions. The wrapper also stays open when there is no
+                        selected result but images are still being hosted, so URL
+                        imports show their progress before processing. */}
+                    {(results[selectedIndex] || hostQueue.total > 0) && (
+                      <>
+                      {results[selectedIndex] && (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => copyImageToClipboard(results[selectedIndex].dataBase64)}
@@ -1403,6 +1562,126 @@ export default function Resizer() {
                           <span>Download</span>
                         </button>
                       </div>
+                      )}
+
+                      {/* Auto-hosting status — no button needed; uploads run in the background queue */}
+                      {hostQueue.total > 0 && (
+                        <div className="mt-2 rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-3 py-2 space-y-1.5">
+                          <div className="flex items-center gap-2 text-[11px] font-semibold text-sky-800 dark:text-sky-200">
+                            {hostQueue.busy ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            ) : hostQueue.failed > 0 ? (
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            )}
+                            <span className="truncate">
+                              {hostQueue.busy
+                                ? `Hosting images… ${hostQueue.done}/${hostQueue.total} done${
+                                    hostQueue.uploading ? ` · ${hostQueue.uploading} uploading` : ''
+                                  }`
+                                : hostQueue.failed > 0
+                                ? `${hostQueue.done} hosted · ${hostQueue.failed} failed to upload`
+                                : `Auto-hosted on imgbb · ${hostQueue.done} link${hostQueue.done === 1 ? '' : 's'} ready`}
+                            </span>
+                          </div>
+
+                          {hostQueue.busy && (
+                            <div className="h-1 w-full rounded-full bg-sky-200/60 dark:bg-sky-900/40 overflow-hidden">
+                              <div
+                                className="h-full bg-sky-500 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${
+                                    hostQueue.total
+                                      ? Math.round(((hostQueue.done + hostQueue.failed) / hostQueue.total) * 100)
+                                      : 0
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                          )}
+
+                          {hostQueue.lastUrl && (
+                            <div className="space-y-0.5">
+                              <a
+                                href={hostQueue.lastUrl}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                title={hostQueue.lastUrl}
+                                className="block text-[11px] font-mono text-sky-700 dark:text-sky-300 truncate hover:underline"
+                              >
+                                {hostQueue.lastUrl}
+                              </a>
+                              {typeof hostQueue.lastDurationMs === 'number' && (
+                                <div className="text-[10px] text-sky-700/70 dark:text-sky-300/70 flex items-center gap-2">
+                                  <span className="inline-flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    last upload {(hostQueue.lastDurationMs / 1000).toFixed(1)}s
+                                  </span>
+                                  {typeof hostQueue.averageDurationMs === 'number' && hostQueue.done > 1 && (
+                                    <span>· avg {(hostQueue.averageDurationMs / 1000).toFixed(1)}s</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {hostQueue.failed > 0 && (
+                            <button
+                              onClick={() => hostQueue.jobs.filter((j) => j.status === 'error' && j.dataUrl).forEach((j) => uploadQueue.retry(j.id))}
+                              className="text-[10px] font-bold text-sky-700 dark:text-sky-300 hover:underline"
+                            >
+                              Retry failed uploads
+                            </button>
+                          )}
+
+                          {/* Every image actually saved — visible proof, with copy + delete */}
+                          {hostQueue.jobs.filter((j) => j.status === 'done' && j.url).length > 0 && (
+                            <details className="pt-1" open>
+                              <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wide text-sky-700/80 dark:text-sky-300/80">
+                                Saved images ({hostQueue.jobs.filter((j) => j.status === 'done').length})
+                              </summary>
+                              <ul className="mt-1.5 space-y-1">
+                                {hostQueue.jobs
+                                  .filter((j) => j.status === 'done' && j.url)
+                                  .slice(-8)
+                                  .reverse()
+                                  .map((j) => (
+                                    <li key={j.id} className="flex items-center gap-2">
+                                      <a
+                                        href={j.url}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                        title={j.url}
+                                        className="flex-1 font-mono truncate hover:underline"
+                                      >
+                                        {j.url}
+                                      </a>
+                                      <span className="text-[9px] font-mono opacity-70">
+                                        {j.durationMs != null ? `${(j.durationMs / 1000).toFixed(1)}s` : ''}
+                                      </span>
+                                      <button
+                                        onClick={() => navigator.clipboard?.writeText(j.url as string)}
+                                        title="Copy link"
+                                        className="p-0.5 hover:opacity-70"
+                                      >
+                                        <Copy className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => uploadQueue.remove(j.id).catch((e) => showToast(e.message, 'error'))}
+                                        title="Remove this saved image"
+                                        className="p-0.5 text-rose-500 hover:opacity-70"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </li>
+                                  ))}
+                              </ul>
+                            </details>
+                          )}
+                        </div>
+                      )}
+                      </>
                     )}
                   </div>
 
@@ -1467,16 +1746,16 @@ export default function Resizer() {
                     </div>
                   ) : (
                     <div className="flex bg-surface dark:bg-zinc-800/80 border-b border-border">
-                      {[
+                      {([
                         { id: 'presets', short: 'Size', icon: '⊞' },
                         { id: 'filters', short: 'Filters', icon: '✦' },
                         { id: 'export',  short: 'Export',  icon: '⚡' },
-                      ].map((tab) => {
+                      ] as const).map((tab) => {
                         const isCurrent = activeTab === tab.id;
                         return (
                           <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => setActiveTab(tab.id)}
                             className={`flex-1 py-3 text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 whitespace-nowrap ${
                               isCurrent
                                 ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white/50 dark:bg-zinc-900/60'
@@ -1594,14 +1873,14 @@ export default function Resizer() {
                   {/* Show the old tab bar when results exist and settings mode is active */}
                   {results.length > 0 && (
                     <div className="flex gap-1.5 p-1 bg-surface dark:bg-zinc-800 rounded-2xl border border-border -mt-1 mb-1">
-                      {[
+                      {([
                         { id: 'presets', short: 'Size', icon: '⊞' },
                         { id: 'filters', short: 'Filters', icon: '✦' },
                         { id: 'export', short: 'Export', icon: '⚡' },
-                      ].map((tab) => (
+                      ] as const).map((tab) => (
                         <button
                           key={tab.id}
-                          onClick={() => setActiveTab(tab.id as any)}
+                          onClick={() => setActiveTab(tab.id)}
                           className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
                             activeTab === tab.id
                               ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-sm'
@@ -1619,8 +1898,9 @@ export default function Resizer() {
 
                       {/* Preset category pills */}
                       <div className="flex gap-1.5 p-1 bg-surface dark:bg-zinc-800 rounded-2xl border border-border">
-                        {(['social', 'ecommerce', 'devices'] as const).map((cat) => {
-                          const icons = { social: '📱', ecommerce: '🛒', devices: '🖥️' };
+                        {(['social', 'ecommerce', 'devices', 'print'] as const).map((cat) => {
+                          const icons = { social: '📱', ecommerce: '🛒', devices: '🖥️', print: '📄' };
+                          const labels = { social: 'Social', ecommerce: 'Shop', devices: 'Screen', print: 'Print' };
                           return (
                             <button
                               key={cat}
@@ -1632,7 +1912,7 @@ export default function Resizer() {
                               }`}
                             >
                               <span>{icons[cat]}</span>
-                              <span>{cat}</span>
+                              <span>{labels[cat]}</span>
                             </button>
                           );
                         })}
@@ -1744,14 +2024,14 @@ export default function Resizer() {
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Fit Mode</label>
                         <div className="grid grid-cols-3 gap-2">
-                          {[
+                          {([
                             { id: 'fit',     label: 'Contain', desc: 'Keeps ratio', emoji: '⬜' },
                             { id: 'fill',    label: 'Cover',   desc: 'Smart crop',  emoji: '⬛' },
                             { id: 'stretch', label: 'Stretch', desc: 'Exact dims',  emoji: '↔' },
-                          ].map((m) => (
+                          ] as const).map((m) => (
                             <button
                               key={m.id}
-                              onClick={() => setFitMode(m.id as any)}
+                              onClick={() => setFitMode(m.id)}
                               className={`p-2.5 rounded-xl text-center border-2 transition-all ${
                                 fitMode === m.id
                                   ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
@@ -1776,16 +2056,16 @@ export default function Resizer() {
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Style Preset</label>
                         <div className="grid grid-cols-5 gap-1.5">
-                          {[
+                          {([
                             { id: 'none',      label: 'Normal',  emoji: '🌈' },
                             { id: 'grayscale', label: 'B&W',     emoji: '⬜' },
                             { id: 'sepia',     label: 'Sepia',   emoji: '🟤' },
                             { id: 'vivid',     label: 'Vivid',   emoji: '⚡' },
                             { id: 'invert',    label: 'Invert',  emoji: '🔁' },
-                          ].map((f) => (
+                          ] as const).map((f) => (
                             <button
                               key={f.id}
-                              onClick={() => setFilterPreset(f.id as any)}
+                              onClick={() => setFilterPreset(f.id)}
                               className={`py-2 px-1 rounded-xl text-center border-2 transition-all ${
                                 filterPreset === f.id
                                   ? 'bg-blue-600 text-white border-blue-600 shadow-md'
@@ -2009,7 +2289,7 @@ export default function Resizer() {
         {/* ========================================================================= */}
         {/* TOP LEVEL SEO CONTENT: GUIDES, DIMENSION PRESETS, BENEFITS & FAQS         */}
         {/* ========================================================================= */}
-        <section aria-label="Image Resizer Guides & Tools" className="mt-16 sm:mt-24 space-y-16 sm:space-y-24">
+        <section data-track-section="guides-and-tools" aria-label="Image Resizer Guides & Tools" className="mt-16 sm:mt-24 space-y-16 sm:space-y-24">
           
           {/* 1. HOW TO RESIZE IMAGES ONLINE (3 EASY STEPS) */}
           <div className="bg-surface-elevated/60 dark:bg-zinc-900/60 border border-border/80 rounded-3xl p-6 sm:p-10 backdrop-blur-xl">
@@ -2066,18 +2346,64 @@ export default function Resizer() {
 
           {/* 2. SOCIAL MEDIA & WEB IMAGE RESIZE PRESET SIZES TABLE */}
           <div className="space-y-6">
-            <div className="max-w-2xl mx-auto text-center space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-500">
-                Popular Presets & Dimensions
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-primary dark:text-white tracking-tight">
-                Recommended Dimensions for Social Media & Web
+            <div className="max-w-3xl mx-auto text-center space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-semibold">
+                <span>⚡ Instant Dimensions Guide</span>
+              </div>
+              <h2 className="text-2xl sm:text-4xl font-extrabold text-primary dark:text-white tracking-tight">
+                Recommended Dimensions for Social Media &amp; Web
               </h2>
-              <p className="text-xs sm:text-sm text-muted">
-                Pre-configured pixel dimensions for pixel-perfect uploads across social networks, websites, and e-commerce.
+              <p className="text-xs sm:text-sm text-muted max-w-2xl mx-auto leading-relaxed">
+                Browse our verified catalog of <strong>Popular Presets &amp; Dimensions</strong> and <strong>Popular sizes</strong>. Click any row to automatically set pixel dimensions, maintain ratio, and jump straight into editing.
               </p>
             </div>
 
+            {/* Category Filter Tabs & Search Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 max-w-5xl mx-auto">
+              <div className="flex items-center gap-1.5 p-1 bg-surface dark:bg-zinc-900 border border-border rounded-2xl overflow-x-auto">
+                {[
+                  { id: 'all' as const, label: 'All Presets', icon: '⊞' },
+                  { id: 'social' as const, label: 'Social Media', icon: '📱' },
+                  { id: 'web' as const, label: 'Web & Screens', icon: '🖥️' },
+                  { id: 'ecommerce' as const, label: 'E-Commerce', icon: '🛒' },
+                  { id: 'print' as const, label: 'Passport & Print', icon: '📄' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setDimCategory(tab.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                      dimCategory === tab.id
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-muted hover:text-primary dark:hover:text-white'
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Instant Search Bar */}
+              <div className="relative min-w-[240px]">
+                <input
+                  type="text"
+                  placeholder="Filter dimensions (e.g. Instagram, 4K)..."
+                  value={dimSearch}
+                  onChange={(e) => setDimSearch(e.target.value)}
+                  className="w-full bg-surface dark:bg-zinc-900 border border-border rounded-2xl px-3.5 py-2 text-xs text-primary dark:text-white placeholder:text-muted focus:outline-none focus:border-blue-500 shadow-sm"
+                />
+                {dimSearch && (
+                  <button
+                    onClick={() => setDimSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary text-xs"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Responsive Preset Table */}
             <div className="overflow-x-auto rounded-3xl border border-border/80 bg-surface-elevated/50 dark:bg-zinc-900/50 backdrop-blur-xl">
               <table className="w-full text-left text-xs sm:text-sm">
                 <thead>
@@ -2085,50 +2411,122 @@ export default function Resizer() {
                     <th className="py-4 px-6">Platform / Use Case</th>
                     <th className="py-4 px-6">Dimensions (Pixels)</th>
                     <th className="py-4 px-6">Aspect Ratio</th>
-                    <th className="py-4 px-6">Best Format</th>
+                    <th className="py-4 px-6">Optimal Format</th>
+                    <th className="py-4 px-6">Recommended Size</th>
                     <th className="py-4 px-6 text-right">Quick Apply</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50 text-secondary dark:text-zinc-300">
                   {[
-                    { platform: 'Instagram Post (Square)', dims: '1080 × 1080 px', ratio: '1:1', format: 'JPG / WebP', preset: 'instagram-post' },
-                    { platform: 'Instagram Story / Reel / TikTok', dims: '1080 × 1920 px', ratio: '9:16', format: 'JPG / WebP', preset: 'instagram-story' },
-                    { platform: 'YouTube Video Thumbnail', dims: '1280 × 720 px', ratio: '16:9', format: 'WebP / JPG', preset: 'youtube' },
-                    { platform: 'Facebook Cover Photo', dims: '1200 × 630 px', ratio: '1.91:1', format: 'PNG / JPG', preset: 'facebook' },
-                    { platform: 'X / Twitter Header & Post', dims: '1200 × 675 px', ratio: '16:9', format: 'JPG / WebP', preset: 'twitter' },
-                    { platform: 'LinkedIn Company Banner', dims: '1200 × 627 px', ratio: '1.91:1', format: 'PNG / JPG', preset: 'linkedin' },
-                    { platform: 'E-commerce Product (Amazon / Shopify)', dims: '2000 × 2000 px', ratio: '1:1', format: 'WebP / PNG', preset: 'amazon' },
-                    { platform: 'Website Full HD Hero Banner', dims: '1920 × 1080 px', ratio: '16:9', format: 'AVIF / WebP', preset: 'screen-fhd' },
-                    { platform: 'Standard Passport Photo', dims: '600 × 600 px', ratio: '1:1', format: 'JPG', preset: 'avatar' },
-                  ].map((row, idx) => (
-                    <tr key={idx} className="hover:bg-blue-500/5 transition-colors">
-                      <td className="py-3.5 px-6 font-semibold text-primary dark:text-white flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                        <span>{row.platform}</span>
-                      </td>
-                      <td className="py-3.5 px-6 font-mono font-bold text-blue-600 dark:text-blue-400">{row.dims}</td>
-                      <td className="py-3.5 px-6 font-mono text-muted">{row.ratio}</td>
-                      <td className="py-3.5 px-6">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface border border-border">
-                          {row.format}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-6 text-right">
-                        <button
-                          onClick={() => {
-                            selectPreset(row.preset);
-                            document.getElementById('resizer-studio')?.scrollIntoView({ behavior: 'smooth' });
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white dark:text-blue-400 dark:hover:text-white text-xs font-semibold transition-all inline-flex items-center gap-1"
-                        >
-                          <span>Apply</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                    // Social Media
+                    { cat: 'social', platform: 'Instagram Square Post', dims: '1080 × 1080 px', ratio: '1:1', format: 'WebP / JPG', rec: '< 4 MB', preset: 'instagram-post' },
+                    { cat: 'social', platform: 'Instagram Story / Reel / TikTok', dims: '1080 × 1920 px', ratio: '9:16', format: 'WebP / JPG', rec: '< 4 MB', preset: 'instagram-story' },
+                    { cat: 'social', platform: 'Instagram Portrait Post', dims: '1080 × 1350 px', ratio: '4:5', format: 'WebP / JPG', rec: '< 4 MB', preset: 'instagram-portrait' },
+                    { cat: 'social', platform: 'YouTube Video Thumbnail', dims: '1280 × 720 px', ratio: '16:9', format: 'WebP / JPG', rec: '< 2 MB', preset: 'youtube' },
+                    { cat: 'social', platform: 'YouTube Channel Banner', dims: '2560 × 1440 px', ratio: '16:9', format: 'PNG / WebP', rec: '< 6 MB', preset: 'youtube-banner' },
+                    { cat: 'social', platform: 'TikTok Video / Story Cover', dims: '1080 × 1920 px', ratio: '9:16', format: 'WebP / JPG', rec: '< 4 MB', preset: 'tiktok' },
+                    { cat: 'social', platform: 'Facebook Post (Landscape)', dims: '1200 × 630 px', ratio: '1.91:1', format: 'PNG / JPG', rec: '< 5 MB', preset: 'facebook' },
+                    { cat: 'social', platform: 'Facebook Page Cover Photo', dims: '820 × 312 px', ratio: '2.6:1', format: 'PNG / JPG', rec: '< 2 MB', preset: 'facebook-cover' },
+                    { cat: 'social', platform: 'X / Twitter In-Stream Post', dims: '1200 × 675 px', ratio: '16:9', format: 'JPG / WebP', rec: '< 5 MB', preset: 'twitter' },
+                    { cat: 'social', platform: 'X / Twitter Header Banner', dims: '1500 × 500 px', ratio: '3:1', format: 'JPG / PNG', rec: '< 5 MB', preset: 'twitter-header' },
+                    { cat: 'social', platform: 'LinkedIn Post & Feed Image', dims: '1200 × 627 px', ratio: '1.91:1', format: 'PNG / JPG', rec: '< 5 MB', preset: 'linkedin' },
+                    { cat: 'social', platform: 'LinkedIn Company Banner', dims: '1584 × 396 px', ratio: '4:1', format: 'PNG / JPG', rec: '< 4 MB', preset: 'linkedin-banner' },
+                    { cat: 'social', platform: 'Pinterest Standard Pin', dims: '1000 × 1500 px', ratio: '2:3', format: 'JPG / PNG', rec: '< 10 MB', preset: 'pinterest' },
+
+                    // Web & Displays
+                    { cat: 'web', platform: '4K Ultra HD Display Wallpaper', dims: '3840 × 2160 px', ratio: '16:9', format: 'AVIF / WebP', rec: 'HQ Wallpaper', preset: 'screen-4k' },
+                    { cat: 'web', platform: 'Full HD 1080p Standard Display', dims: '1920 × 1080 px', ratio: '16:9', format: 'AVIF / WebP', rec: 'Universal', preset: 'screen-fhd' },
+                    { cat: 'web', platform: '2K QHD Display Wallpaper', dims: '2560 × 1440 px', ratio: '16:9', format: 'AVIF / WebP', rec: 'Monitor', preset: 'screen-2k' },
+                    { cat: 'web', platform: '720p HD Standard Web Banner', dims: '1280 × 720 px', ratio: '16:9', format: 'WebP / JPG', rec: '< 300 KB', preset: 'screen-hd' },
+                    { cat: 'web', platform: 'Hero Website Header Banner', dims: '1920 × 600 px', ratio: '3.2:1', format: 'AVIF / WebP', rec: '< 250 KB', preset: 'banner' },
+                    { cat: 'web', platform: 'Blog Featured Image (OpenGraph)', dims: '1200 × 630 px', ratio: '1.91:1', format: 'WebP / AVIF', rec: '< 200 KB', preset: 'blog-featured' },
+                    { cat: 'web', platform: 'High-Res App / Profile Icon', dims: '512 × 512 px', ratio: '1:1', format: 'PNG', rec: 'Lossless', preset: 'avatar' },
+                    { cat: 'web', platform: 'Favicon & Browser Tab Icon', dims: '32 × 32 px', ratio: '1:1', format: 'PNG / ICO', rec: '< 10 KB', preset: 'favicon' },
+
+                    // E-Commerce
+                    { cat: 'ecommerce', platform: 'Amazon Product Image (Hi-Res)', dims: '2000 × 2000 px', ratio: '1:1', format: 'WebP / JPG', rec: '< 10 MB', preset: 'amazon' },
+                    { cat: 'ecommerce', platform: 'Shopify Square Product Listing', dims: '2048 × 2048 px', ratio: '1:1', format: 'WebP / PNG', rec: '< 5 MB', preset: 'shopify' },
+                    { cat: 'ecommerce', platform: 'Etsy Marketplace Item Photo', dims: '2000 × 1500 px', ratio: '4:3', format: 'WebP / JPG', rec: '< 8 MB', preset: 'etsy' },
+                    { cat: 'ecommerce', platform: 'eBay Product Gallery Photo', dims: '1600 × 1600 px', ratio: '1:1', format: 'WebP / JPG', rec: '< 7 MB', preset: 'ebay' },
+
+                    // Passport & Print
+                    { cat: 'print', platform: 'US Official Passport Photo (2×2")', dims: '600 × 600 px', ratio: '1:1', format: 'JPG', rec: '300 DPI', preset: 'passport-us' },
+                    { cat: 'print', platform: 'Schengen / EU / UK Passport Photo', dims: '413 × 531 px', ratio: '35×45mm', format: 'JPG', rec: '300 DPI', preset: 'passport-schengen' },
+                    { cat: 'print', platform: 'Standard A4 Document Printout', dims: '2480 × 3508 px', ratio: '1:1.41', format: 'PNG / PDF', rec: '300 DPI', preset: 'print-a4' },
+                    { cat: 'print', platform: 'Standard 4×6" Photo Printout', dims: '1200 × 1800 px', ratio: '2:3', format: 'JPG / PNG', rec: '300 DPI', preset: 'print-4x6' },
+                    { cat: 'print', platform: 'Standard 5×7" Photo Printout', dims: '1500 × 2100 px', ratio: '5:7', format: 'JPG / PNG', rec: '300 DPI', preset: 'print-5x7' },
+                  ]
+                    .filter((row) => {
+                      if (dimCategory !== 'all' && row.cat !== dimCategory) return false;
+                      if (dimSearch.trim()) {
+                        const q = dimSearch.toLowerCase();
+                        return (
+                          row.platform.toLowerCase().includes(q) ||
+                          row.dims.toLowerCase().includes(q) ||
+                          row.ratio.toLowerCase().includes(q) ||
+                          row.preset.toLowerCase().includes(q)
+                        );
+                      }
+                      return true;
+                    })
+                    .map((row, idx) => (
+                      <tr key={idx} className="hover:bg-blue-500/5 transition-colors">
+                        <td className="py-3.5 px-6 font-semibold text-primary dark:text-white flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                          <span>{row.platform}</span>
+                        </td>
+                        <td className="py-3.5 px-6 font-mono font-bold text-blue-600 dark:text-blue-400">{row.dims}</td>
+                        <td className="py-3.5 px-6 font-mono text-muted">{row.ratio}</td>
+                        <td className="py-3.5 px-6">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface border border-border">
+                            {row.format}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-6 font-mono text-[11px] text-muted">{row.rec}</td>
+                        <td className="py-3.5 px-6 text-right">
+                          <button
+                            onClick={() => {
+                              selectPreset(row.preset);
+                              document.getElementById('resizer-studio')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white dark:text-blue-400 dark:hover:text-white text-xs font-semibold transition-all inline-flex items-center gap-1 hover:scale-105 active:scale-95"
+                          >
+                            <span>Apply</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Keyword-Rich Dimension & Aspect Ratio Explanation Guide */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 text-xs text-muted leading-relaxed">
+              <div className="p-5 rounded-2xl bg-surface dark:bg-zinc-950 border border-border/60 space-y-2">
+                <h3 className="font-bold text-primary dark:text-white text-sm">
+                  Popular Presets &amp; Dimensions for Social Media
+                </h3>
+                <p>
+                  To avoid automatic compression and blurriness, always upload images at recommended resolutions: <strong>1080×1080 px</strong> for Instagram posts, <strong>1080×1920 px</strong> for vertical Stories, Reels, and TikTok, and <strong>1280×720 px</strong> for high-CTR YouTube thumbnails.
+                </p>
+              </div>
+              <div className="p-5 rounded-2xl bg-surface dark:bg-zinc-950 border border-border/60 space-y-2">
+                <h3 className="font-bold text-primary dark:text-white text-sm">
+                  Recommended Dimensions for Web &amp; E-Commerce
+                </h3>
+                <p>
+                  E-commerce platforms like Amazon and Shopify require high-resolution square images (<strong>2000×2000 px</strong> or <strong>2048×2048 px</strong>) to activate customer zoom features while keeping WebP file sizes lightweight for fast mobile page speed.
+                </p>
+              </div>
+              <div className="p-5 rounded-2xl bg-surface dark:bg-zinc-950 border border-border/60 space-y-2">
+                <h3 className="font-bold text-primary dark:text-white text-sm">
+                  Popular Sizes for Print &amp; Passport Photos
+                </h3>
+                <p>
+                  For physical photo prints and government documents, precise DPI and aspect ratio matter: standard US passport photos need exactly <strong>600×600 px (2×2 inches at 300 DPI)</strong>, while Schengen visas require <strong>413×531 px (35×45mm)</strong>.
+                </p>
+              </div>
             </div>
           </div>
 

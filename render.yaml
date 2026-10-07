@@ -56,3 +56,9 @@ services:
         sync: false
       - key: STRIPE_PRICE_BUSINESS
         sync: false
+      # Image hosting (imgbb). sync: false -> paste your client API key from
+      # https://api.imgbb.com/user/api_key into Render's environment.
+      - key: IMGBB_API_KEY
+        sync: false
+      - key: IMGBB_TIMEOUT_MS
+        value: "30000"

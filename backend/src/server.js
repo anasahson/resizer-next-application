@@ -1,6 +1,7 @@
 const app = require('./app');
 const { testConnection, pool } = require('./config/db');
 const { initDb } = require('./config/dbInit');
+const { shutdownPostHog } = require('./services/posthog.service');
 
 const PORT = process.env.PORT || 5000;
 
@@ -31,6 +32,15 @@ const startServer = async () => {
       }
     } catch (err) {
       console.error('Error while closing MySQL pool:', err.message);
+    }
+
+    // Flush buffered PostHog events so the last AI/analytics events are not
+    // dropped on restart (client buffers up to 20 events / 10s of them).
+    try {
+      await shutdownPostHog();
+      console.log('PostHog client flushed and shut down.');
+    } catch (err) {
+      console.error('Error while shutting down PostHog client:', err.message);
     }
 
     server.close(() => {

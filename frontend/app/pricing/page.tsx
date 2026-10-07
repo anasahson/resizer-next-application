@@ -2,10 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useSubscriptionStore } from '../context/useSubscriptionStore';
 import { useAuth } from '../context/AuthContext';
-import { Check, Zap, Crown, Shield, ArrowRight, Sparkles, Image as ImageIcon, Download, Users } from 'lucide-react';
+import { Check, Zap, Crown, Shield, Sparkles, ArrowRight, Image as ImageIcon, Download, Users } from 'lucide-react';
 
 const PLAN_META: Record<string, {
   icon: React.ReactNode;
@@ -43,19 +42,19 @@ const PLAN_ORDER = ['free', 'pro', 'business'];
 const FAQS = [
   {
     q: 'Can I upgrade or downgrade anytime?',
-    a: 'Yes! You can change your plan at any time. Changes take effect immediately, and we prorate unused time.',
+    a: 'Paid plans are coming soon. When they launch, you will be able to change your plan at any time, changes take effect immediately, and unused time is prorated.',
   },
   {
     q: 'Is there a free trial for Pro?',
-    a: 'No trial needed — just start with the Free plan (5 images/month) and upgrade when you\'re ready. No credit card required.',
+    a: 'The Free plan is free to use right now with no credit card required. Pro and Business plans will launch with paid billing — there is no automatic enrolment and no charge until you choose a plan.',
   },
   {
     q: 'What happens when I hit my monthly limit?',
-    a: 'You\'ll see a friendly prompt to upgrade. Your existing images are always available for download.',
+    a: 'You\'ll see a friendly prompt. Your existing images are always available for download, and paid plans — which lift the limit — are on the way.',
   },
   {
     q: 'Can I invite friends for referral bonuses?',
-    a: 'Yes! Get 10% commission on each friend who upgrades to a paid plan. Go to your Dashboard → Referrals to get your link.',
+    a: 'Referral commissions launch alongside paid plans. We\'ll announce it here and in your dashboard as soon as referrals go live.',
   },
   {
     q: 'What image formats are supported?',
@@ -68,39 +67,13 @@ const FAQS = [
 ];
 
 export default function PricingPage() {
-  const router = useRouter();
   const { plans, fetchPlans } = useSubscriptionStore();
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [checkoutError, setCheckoutError] = useState('');
 
   useEffect(() => {
     fetchPlans();
   }, []);
-
-  const handleUpgrade = async (planId: string) => {
-    if (!user) {
-      router.push('/register');
-      return;
-    }
-    if (planId === 'free') {
-      router.push('/');
-      return;
-    }
-    setIsLoading(planId);
-    setCheckoutError('');
-    try {
-      const { upgradeToProDev } = useSubscriptionStore.getState();
-      const checkoutUrl = await upgradeToProDev(planId);
-      window.location.assign(checkoutUrl);
-    } catch (error: unknown) {
-      const responseError = (error as { response?: { data?: { error?: string } } }).response?.data?.error;
-      const message = responseError || 'Unable to start checkout. Please try again.';
-      setCheckoutError(message);
-      setIsLoading(null);
-    }
-  };
 
   const plansLoaded = Object.keys(plans).length > 0;
 
@@ -118,8 +91,17 @@ export default function PricingPage() {
           Choose Your Plan
         </h1>
         <p className="text-base sm:text-lg text-muted max-w-xl mx-auto">
-          Start free — no credit card needed. Upgrade when you need more images, batch processing, or priority support.
+          Everything you need to optimise images is free today. Paid plans are
+          being prepared — and you won&apos;t be charged a cent until they launch.
         </p>
+
+        <div className="mt-6 inline-flex items-center gap-2.5 px-5 py-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-sm font-semibold max-w-xl">
+          <Sparkles className="w-4 h-4 shrink-0" />
+          <span>
+            Paid plans &amp; checkout are <span className="font-extrabold">coming soon</span> — keep
+            using the free plan in the meantime.
+          </span>
+        </div>
       </section>
 
       {/* ── PLAN CARDS ── */}
@@ -180,53 +162,53 @@ export default function PricingPage() {
                     ))}
                   </ul>
 
-                  {/* CTA Button */}
-                  <button
-                    onClick={() => handleUpgrade(planId)}
-                    disabled={isLoading === planId}
-                    className={`w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed ${
-                      meta.popular
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/25'
-                        : isFree
-                        ? 'bg-surface dark:bg-zinc-800 border border-border text-primary dark:text-white hover:border-blue-400'
-                        : `bg-gradient-to-r ${meta.gradient} text-white shadow-lg`
-                    }`}
-                  >
-                    {isLoading === planId ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <span>
-                          {isFree
-                            ? (user ? 'Start Resizing Free' : 'Get Started Free')
-                            : `Upgrade to ${plan.name}`}
-                        </span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-
-                  {!isFree && (
-                    <p className="text-[11px] text-center text-muted -mt-3">
-                      Secure checkout · Cancel anytime
-                    </p>
+                  {/* The Free plan is genuinely live, so it keeps a real call to action
+                      pointing at the login/register pages. Paid plans stay
+                      non-interactive until checkout is switched on. */}
+                  {isFree ? (
+                    <Link
+                      href={user ? '/' : '/register'}
+                      className="w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 bg-surface dark:bg-zinc-800 border border-border text-primary dark:text-white hover:border-blue-400"
+                    >
+                      <span>{user ? 'Start Resizing Free' : 'Get Started Free'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  ) : (
+                    <div
+                      aria-disabled="true"
+                      className={`w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 select-none cursor-not-allowed ${
+                        meta.popular
+                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white/90 shadow-lg shadow-blue-500/20 border border-blue-400/40'
+                          : 'bg-surface dark:bg-zinc-800 border border-dashed border-border text-muted'
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Coming Soon</span>
+                    </div>
                   )}
+
+                  <p className="text-[11px] text-center text-muted -mt-3">
+                    {isFree ? (
+                      <span>
+                        Available now · No credit card required ·{' '}
+                        <Link href="/login" className="underline underline-offset-2 hover:text-primary">
+                          Log in
+                        </Link>
+                      </span>
+                    ) : (
+                      'Payments launching soon · No charges until then'
+                    )}
+                  </p>
                 </div>
               );
             })}
           </div>
         )}
 
-        {checkoutError && (
-          <div role="alert" className="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-center text-sm text-rose-700 dark:text-rose-300">
-            {checkoutError}
-          </div>
-        )}
-
         {/* ── TRUST BADGES ── */}
         <div className="mt-14 grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { icon: <Shield className="w-5 h-5 text-emerald-500" />, title: 'Secure Payments', desc: 'Powered by Stripe' },
+            { icon: <Shield className="w-5 h-5 text-emerald-500" />, title: 'Secure Payments', desc: 'Stripe, when we launch' },
             { icon: <Zap className="w-5 h-5 text-blue-500" />, title: 'Cancel Anytime', desc: 'No lock-in contracts' },
             { icon: <Users className="w-5 h-5 text-purple-500" />, title: 'Referral Bonuses', desc: '10% for each friend' },
             { icon: <Download className="w-5 h-5 text-amber-500" />, title: 'Instant Access', desc: 'No setup required' },
@@ -251,6 +233,21 @@ export default function PricingPage() {
         </h2>
 
         <div className="space-y-3">
+          {/* FAQPage structured data — pricing questions often surface as rich results */}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'FAQPage',
+                mainEntity: FAQS.map((f) => ({
+                  '@type': 'Question',
+                  name: f.q,
+                  acceptedAnswer: { '@type': 'Answer', text: f.a },
+                })),
+              }),
+            }}
+          />
           {FAQS.map((faq, idx) => (
             <div
               key={idx}

@@ -218,11 +218,67 @@ const initDb = async () => {
       }
     }
 
+    // 10. stored_images — imgbb URL storage (no binary blobs in DB)
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS stored_images (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        image_url VARCHAR(1024) NOT NULL,
+        provider_image_id VARCHAR(255) DEFAULT NULL,
+        provider_delete_url VARCHAR(512) DEFAULT NULL,
+        original_filename VARCHAR(255) DEFAULT NULL,
+        mime_type VARCHAR(80) DEFAULT 'image/webp',
+        size_bytes BIGINT DEFAULT 0,
+        user_id VARCHAR(191) DEFAULT NULL,
+        caption TEXT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_si_user (user_id),
+        INDEX idx_si_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Additive migration: this table previously held Telegram-specific columns.
+    // Add the provider columns for databases created before the imgbb switch;
+    // the legacy Telegram columns stay in place (nullable) so old rows still load.
+    const ensureStoredImageColumn = async (column, definition) => {
+      try {
+        await connection.query(`ALTER TABLE stored_images ADD COLUMN ${column} ${definition}`);
+      } catch (err) {
+        // ER_DUP_FIELDNAME (1060) means the column already exists — expected.
+        if (err && err.code !== 'ER_DUP_FIELDNAME') {
+          console.warn(`[dbInit] could not add stored_images.${column}: ${err.message}`);
+        }
+      }
+    };
+    await ensureStoredImageColumn('provider_image_id', 'VARCHAR(255) DEFAULT NULL');
+    await ensureStoredImageColumn('provider_delete_url', 'VARCHAR(512) DEFAULT NULL');
+
+    // 11. image_hosting_logs — audit trail for every hosting attempt
+    // (source, timing, outcome, failure reason). Append-only.
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS image_hosting_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        source VARCHAR(32) NOT NULL DEFAULT 'unknown',
+        provider VARCHAR(32) NOT NULL DEFAULT 'imgbb',
+        filename VARCHAR(255) DEFAULT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'failed',
+        url VARCHAR(1024) DEFAULT NULL,
+        error TEXT DEFAULT NULL,
+        duration_ms INT DEFAULT NULL,
+        size_bytes BIGINT DEFAULT NULL,
+        mime_type VARCHAR(80) DEFAULT NULL,
+        user_id VARCHAR(191) DEFAULT NULL,
+        INDEX idx_ihl_created (created_at),
+        INDEX idx_ihl_status (status),
+        INDEX idx_ihl_source (source)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     // Seed default system settings if not exist
     const defaultSettings = [
       ['ai_active_provider', 'auto'],
       ['openai_model', 'gpt-4o-mini'],
-      ['gemini_model', 'gemini-1.5-flash'],
+      ['gemini_model', 'gemini-3.5-flash-lite'],
       ['site_name', 'Resizer'],
       ['site_tagline', 'High-Performance Image Optimization & Codec Engine'],
       ['support_email', 'support@resizer.com'],

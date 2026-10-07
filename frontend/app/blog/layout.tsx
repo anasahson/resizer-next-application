@@ -20,6 +20,13 @@ export const metadata: Metadata = {
     description:
       'Learn modern image compression, codec comparisons, and responsive picture techniques from Resizora engineers.',
     url: '/blog',
+    siteName: 'Resizora',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Engineering Blog & Image Optimization Guides — Resizora',
+    description: 'Modern image compression, codec comparisons and responsive picture techniques.',
   },
 };
 

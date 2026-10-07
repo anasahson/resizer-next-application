@@ -22,7 +22,9 @@ uploads/
 temp/
 backend/uploads/
 backend/temp/
+backend/logs/
 *.log
+*.jsonl
 
 # Coverage and local tooling
 coverage/

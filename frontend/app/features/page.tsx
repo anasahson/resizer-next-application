@@ -324,7 +324,7 @@ export default function FeaturesPage() {
               Why In-Browser Processing Wins
             </h2>
             <p className="text-muted text-sm sm:text-base">
-              Comparing Resizer's zero-cloud architecture with conventional online image convertors.
+              Comparing Resizer&apos;s zero-cloud architecture with conventional online image convertors.
             </p>
           </div>
 
@@ -480,7 +480,22 @@ export default function FeaturesPage() {
         </div>
 
         <div className="max-w-3xl mx-auto space-y-3">
-          {FAQS.map((faq, idx) => {
+          {/* FAQPage structured data — enables rich results for the FAQ block below */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'FAQPage',
+              mainEntity: FAQS.map((f) => ({
+                '@type': 'Question',
+                name: f.question,
+                acceptedAnswer: { '@type': 'Answer', text: f.answer },
+              })),
+            }),
+          }}
+        />
+        {FAQS.map((faq, idx) => {
             const isOpen = activeFaq === idx;
             return (
               <div

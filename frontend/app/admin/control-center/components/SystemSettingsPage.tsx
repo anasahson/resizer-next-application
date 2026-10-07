@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Key,
   Sparkles,
@@ -27,6 +27,9 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
   || 'http://localhost:5000';
 
+const getAuthToken = () =>
+  (typeof window !== 'undefined' ? localStorage.getItem('resizer_superadmin_auth_token') || '' : '');
+
 export default function SystemSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -38,7 +41,7 @@ export default function SystemSettingsPage() {
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [activeProvider, setActiveProvider] = useState('auto');
   const [openaiModel, setOpenaiModel] = useState('gpt-4.1');
-  const [geminiModel, setGeminiModel] = useState('gemini-3.7-flash');
+  const [geminiModel, setGeminiModel] = useState('gemini-3.5-flash-lite');
 
   // Platform & Brand Settings
   const [siteName, setSiteName] = useState('Resizer');
@@ -55,15 +58,7 @@ export default function SystemSettingsPage() {
   const [geminiStatus, setGeminiStatus] = useState<{ success?: boolean; message?: string } | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
-  const getAuthToken = () => {
-    return typeof window !== 'undefined' ? localStorage.getItem('resizer_superadmin_auth_token') || '' : '';
-  };
-
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`${BACKEND_URL}/api/admin/settings/ai`, {
@@ -76,7 +71,7 @@ export default function SystemSettingsPage() {
         setGeminiApiKey(s.geminiApiKey || '');
         setActiveProvider(s.activeProvider || 'auto');
         setOpenaiModel(s.openaiModel || 'gpt-4o-mini');
-        setGeminiModel(s.geminiModel || 'gemini-1.5-flash');
+        setGeminiModel(s.geminiModel || 'gemini-3.5-flash-lite');
 
         setSiteName(s.siteName || 'Resizer');
         setSiteTagline(s.siteTagline || 'Next-Gen Image Optimization Suite');
@@ -92,7 +87,14 @@ export default function SystemSettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // The loading flag flips at fetch start so the panel shows its spinner
+  // immediately; that synchronous update is intentional.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchSettings();
+  }, [fetchSettings]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,9 +129,14 @@ export default function SystemSettingsPage() {
       if (data.success) {
         setSaveMessage('System settings & AI API credentials saved to MySQL database successfully!');
         setTimeout(() => setSaveMessage(null), 4000);
+      } else {
+        // Never fail silently: a rejected save used to leave the operator
+        // believing fresh API keys were live while the old broken ones ran.
+        setSaveMessage(`Save failed: ${data.message || `HTTP ${res.status}`}`);
+        console.error('[System settings] save rejected:', res.status, data);
       }
-    } catch (err: any) {
-      alert(`Save error: ${err.message}`);
+    } catch (err) {
+      alert(`Save error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSaving(false);
     }
@@ -164,11 +171,12 @@ export default function SystemSettingsPage() {
       } else {
         setGeminiStatus({ success: data.success, message: data.message });
       }
-    } catch (err: any) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       if (provider === 'openai') {
-        setOpenaiStatus({ success: false, message: err.message });
+        setOpenaiStatus({ success: false, message });
       } else {
-        setGeminiStatus({ success: false, message: err.message });
+        setGeminiStatus({ success: false, message });
       }
     } finally {
       if (provider === 'openai') setTestingOpenAI(false);

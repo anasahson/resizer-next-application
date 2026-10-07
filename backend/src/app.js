@@ -15,6 +15,9 @@ const subscriptionRoutes = require('./routes/subscription.routes');
 const shareRoutes = require('./routes/share.routes');
 const referralRoutes = require('./routes/referral.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
+const exportRoutes = require('./routes/export.routes');
+const storageRoutes = require('./routes/storage.routes');
+const { trackException } = require('./services/posthog.service');
 
 const app = express();
 
@@ -130,6 +133,16 @@ const getApiData = () => ({
       public: { method: 'GET', path: '/api/analytics/public', desc: 'Platform usage totals' },
       track: { method: 'POST', path: '/api/analytics/track-event', desc: 'Telemetry event ingestion' },
     },
+    storage: {
+      upload: { method: 'POST', path: '/api/storage/upload', desc: 'Save processed image to imgbb (logged to JSONL, not the database)' },
+      image: { method: 'GET', path: '/api/storage/:id/image', desc: 'Permanent public image URL (redirects to the CDN)' },
+      mine: { method: 'GET', path: '/api/storage/images', desc: 'Saved images for the signed-in user (Auth required)' },
+      delete: { method: 'DELETE', path: '/api/storage/:id', desc: 'Forget a saved image record (Auth required)' },
+      status: { method: 'GET', path: '/api/storage/status', desc: 'Hosting & database readiness probe' },
+    },
+    export: {
+      imgbb: { method: 'POST', path: '/api/export/imgbb', desc: 'Upload a processed image to imgbb' },
+    },
   },
 });
 
@@ -235,9 +248,49 @@ const sendApiIndex = (req, res) => {
   return res.json(data);
 };
 
-// Root & /api welcome routes
-app.get('/', sendApiIndex);
-app.get('/api', sendApiIndex);
+// Protected API Portal HTTP Basic Authentication
+const protectApiPortal = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const expectedUser = process.env.API_DOCS_USER || 'admin';
+  const expectedPass = process.env.API_DOCS_PASSWORD || process.env.SUPERADMIN_PASSWORD || 'Gravity@99';
+
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Protected Resizer API Portal"');
+    return res.status(401).send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Authentication Required</title></head>
+      <body style="background:#09090b;color:#f4f4f5;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+        <div style="text-align:center;max-width:380px;padding:2rem;background:#18181b;border:1px solid #27272a;border-radius:12px;">
+          <h2 style="color:#ef4444;margin-bottom:0.5rem;">🔒 Protected API Portal</h2>
+          <p style="color:#a1a1aa;font-size:0.9rem;">Sign in with your administrator credentials to access the API Explorer.</p>
+          <button onclick="location.reload()" style="margin-top:1.25rem;background:#3b82f6;color:white;border:none;padding:0.6rem 1.25rem;border-radius:6px;cursor:pointer;font-weight:600;">Sign In</button>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+
+  const base64Credentials = authHeader.split(' ')[1];
+  const decoded = Buffer.from(base64Credentials, 'base64').toString('utf8');
+  const colonIndex = decoded.indexOf(':');
+  const user = decoded.substring(0, colonIndex);
+  const pass = decoded.substring(colonIndex + 1);
+
+  const isUserValid = (user === expectedUser) || (user === (process.env.SUPERADMIN_EMAIL || 'resizer@anas.com'));
+  const isPassValid = (pass === expectedPass) || (pass === (process.env.SUPERADMIN_PASSWORD || 'Gravity@99'));
+
+  if (isUserValid && isPassValid) {
+    return next();
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="Protected Resizer API Portal"');
+  return res.status(401).send('Invalid credentials. Access denied.');
+};
+
+// Root & /api welcome routes (Protected with Basic Auth alert)
+app.get('/', protectApiPortal, sendApiIndex);
+app.get('/api', protectApiPortal, sendApiIndex);
 
 // API Routes
 app.use('/api', healthRoutes);
@@ -250,6 +303,8 @@ app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/share', shareRoutes);
 app.use('/api/referral', referralRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/storage', storageRoutes);
 
 // 404 Handler
 app.use((req, res) => {
@@ -265,6 +320,22 @@ app.use((err, req, res, next) => {
   console.error('[Error]:', err.message || err);
 
   const statusCode = err.status || err.statusCode || 500;
+
+  // Report server-side 5xx to PostHog Error Tracking (best-effort; the
+  // trackException call never throws).
+  if (statusCode >= 500) {
+    try {
+      trackException({
+        distinctId: req.user?.id != null ? String(req.user.id) : 'anonymous',
+        source: 'backend-express',
+        type: err.name || 'Error',
+        message: err.message,
+        stack: err.stack,
+        extra: { status: statusCode, method: req.method, path: req.originalUrl },
+      });
+    } catch { /* observability must never break the response */ }
+  }
+
   res.status(statusCode).json({
     error: statusCode >= 500 ? 'InternalServerError' : (err.name || 'RequestError'),
     message: statusCode >= 500 && process.env.NODE_ENV === 'production'

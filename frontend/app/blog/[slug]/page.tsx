@@ -2,11 +2,29 @@ import React from 'react';
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  getLivePostBySlug,
-  getAllPostSlugs,
-  BlogPost,
-} from '../../lib/blogData';
+import { getLivePostBySlug, BlogPost } from '../../lib/blogData';
+
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
+
+/**
+ * A related-article card. DB rows arrive with flat author columns
+ * (author_name / author_role) while static posts carry a nested author object;
+ * the block below normalises both into `author`.
+ */
+interface RelatedPost {
+  id: string | number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  category: string;
+  readTime: string;
+  featuredImage?: string;
+  author?: { name?: string; role?: string; avatar?: string; bio?: string };
+  author_name?: string;
+  authorName?: string;
+  author_role?: string;
+  authorRole?: string;
+}
 import {
   Clock,
   Calendar,
@@ -27,11 +45,12 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-// 1. Next.js Static Generation: Generate static routes for all posts at build time
-export async function generateStaticParams() {
-  const slugs = getAllPostSlugs();
-  return slugs.map((slug) => ({ slug }));
-}
+// This route renders on demand from the live database. Next marks it static
+// (generateStaticParams returned no slugs), and the no-store fetch inside
+// generateMetadata then trips "Page changed from static to dynamic at runtime",
+// which is a hard 500 in production for every /blog/<slug>.
+// See https://nextjs.org/docs/messages/app-static-to-dynamic-error
+export const dynamic = 'force-dynamic';
 
 // 2. Next.js Dynamic SEO Metadata
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -45,30 +64,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const url = `https://resizer.app/blog/${post.slug}`;
+  const url = `${SITE_URL}/blog/${post.slug}`;
+  const safeTags = Array.isArray(post.tags) ? post.tags : [];
+  const authorName = post.author?.name || 'Resizer Engineering';
 
   return {
-    title: `${post.seoTitle} | Resizer`,
-    description: post.metaDescription,
-    keywords: post.tags,
-    authors: [{ name: post.author.name }],
+    title: `${post.seoTitle || post.title} | Resizer`,
+    description: post.metaDescription || post.excerpt,
+    keywords: safeTags,
+    authors: [{ name: authorName }],
     alternates: {
       canonical: url,
     },
     openGraph: {
-      title: post.seoTitle,
-      description: post.metaDescription,
+      title: post.seoTitle || post.title,
+      description: post.metaDescription || post.excerpt,
       url,
       siteName: 'Resizer Engineering',
       type: 'article',
       publishedTime: post.isoDate,
-      authors: [post.author.name],
-      tags: post.tags,
+      authors: [authorName],
+      tags: safeTags,
     },
     twitter: {
       card: 'summary_large_image',
-      title: post.seoTitle,
-      description: post.metaDescription,
+      title: post.seoTitle || post.title,
+      description: post.metaDescription || post.excerpt,
     },
   };
 }
@@ -81,35 +102,61 @@ export default async function BlogPostPage({ params }: Props) {
     notFound();
   }
 
-  // Related articles (same category or others, excluding current)
-  const relatedPosts: BlogPost[] = [];
+  // Related articles (populated from API or statically)
+  const rawRelated =
+    (post as BlogPost & { relatedPosts?: RelatedPost[] }).relatedPosts || [];
+  let relatedPosts: RelatedPost[] = rawRelated;
+  if (relatedPosts.length === 0) {
+    const { BLOG_POSTS } = await import('../../lib/blogData');
+    relatedPosts = BLOG_POSTS
+      .filter((p) => p.slug !== post.slug)
+      .slice(0, 3);
+  }
+
+  // Normalize related post author — DB rows use flat columns; static posts use nested object.
+  // This prevents a crash on `rPost.author.name` when author is undefined.
+  relatedPosts = relatedPosts.map((rp) => ({
+    ...rp,
+    author: rp.author && typeof rp.author === 'object'
+      ? rp.author
+      : {
+          name: rp.author_name || rp.authorName || 'Resizer Engineering',
+          role: rp.author_role || rp.authorRole || 'Staff Writer',
+        },
+  }));
+
+  const safeTags = Array.isArray(post.tags) ? post.tags : [];
+  const authorName = post.author?.name || 'Resizer Engineering';
+  const authorRole = post.author?.role || 'Staff Writer';
+  const authorBio = post.author?.bio || `${authorName} is an engineering contributor at Resizer focusing on media optimization and performance architecture.`;
+  const authorAvatar = post.author?.avatar || authorName.charAt(0);
 
   // 3. JSON-LD Structured Data Schema for Google Search Rich Results
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'TechArticle',
     headline: post.title,
-    description: post.metaDescription,
+    description: post.metaDescription || post.excerpt,
     datePublished: post.isoDate,
     dateModified: post.isoDate,
     author: {
       '@type': 'Person',
-      name: post.author.name,
-      jobTitle: post.author.role,
+      name: authorName,
+      jobTitle: authorRole,
     },
     publisher: {
       '@type': 'Organization',
       name: 'Resizer',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://resizer.app/logo.png',
+        url: `${SITE_URL}/logo.png`,
       },
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': `https://resizer.app/blog/${post.slug}`,
+      '@id': `${SITE_URL}/blog/${post.slug}`,
     },
-    keywords: post.tags.join(', '),
+    keywords: safeTags.join(', '),
   };
 
   const breadcrumbSchema = {
@@ -120,19 +167,19 @@ export default async function BlogPostPage({ params }: Props) {
         '@type': 'ListItem',
         position: 1,
         name: 'Home',
-        item: 'https://resizer.app',
+        item: `${SITE_URL}/`,
       },
       {
         '@type': 'ListItem',
         position: 2,
         name: 'Blog',
-        item: 'https://resizer.app/blog',
+        item: `${SITE_URL}/blog`,
       },
       {
         '@type': 'ListItem',
         position: 3,
         name: post.title,
-        item: `https://resizer.app/blog/${post.slug}`,
+        item: `${SITE_URL}/blog/${post.slug}`,
       },
     ],
   };
@@ -226,11 +273,11 @@ export default async function BlogPostPage({ params }: Props) {
           {/* Author Capsule */}
           <div className="flex items-center gap-3.5 pt-4">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-blue-500/20">
-              {post.author.avatar}
+              {authorAvatar}
             </div>
             <div>
-              <div className="text-sm font-bold text-primary dark:text-white">{post.author.name}</div>
-              <div className="text-xs text-muted">{post.author.role}</div>
+              <div className="text-sm font-bold text-primary dark:text-white">{authorName}</div>
+              <div className="text-xs text-muted">{authorRole}</div>
             </div>
           </div>
         </header>
@@ -264,7 +311,7 @@ export default async function BlogPostPage({ params }: Props) {
                   {post.title}
                 </h2>
                 <p className="text-sm text-zinc-400 flex items-center gap-3">
-                  <span>{post.author.name}</span>
+                  <span>{authorName}</span>
                   <span className="text-zinc-600">•</span>
                   <span>{post.readTime}</span>
                 </p>
@@ -285,12 +332,12 @@ export default async function BlogPostPage({ params }: Props) {
 
             {/* Lead Overview */}
             <div className="p-5 rounded-2xl bg-surface dark:bg-zinc-900/60 border border-border dark:border-zinc-800/80 text-sm sm:text-base text-secondary dark:text-zinc-300 leading-relaxed italic border-l-4 border-l-blue-500">
-              {post.content.overview}
+              {post.content?.overview || post.excerpt}
             </div>
 
             {/* Sections */}
             <div className="space-y-8 text-sm sm:text-base text-secondary dark:text-zinc-300 leading-relaxed">
-              {post.content.sections.map((section, idx) => (
+              {(post.content?.sections || []).map((section, idx) => (
                 <section key={idx} className="space-y-3.5 scroll-mt-24" id={`section-${idx}`}>
                   <h2 className="text-xl sm:text-2xl font-bold text-primary dark:text-white tracking-tight">
                     {section.heading}
@@ -325,23 +372,25 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
 
             {/* Key Takeaways Box */}
-            <div className="p-6 rounded-3xl bg-gradient-to-br from-blue-950/20 via-surface to-indigo-950/20 dark:from-blue-950/30 dark:via-zinc-900 dark:to-indigo-950/30 border border-blue-500/30 space-y-4 shadow-xl">
-              <h3 className="text-sm font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <span>Key Takeaways for Developers</span>
-              </h3>
-              <ul className="space-y-2.5 text-xs sm:text-sm text-secondary dark:text-zinc-200">
-                {post.content.takeaways.map((takeaway, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <span className="text-blue-500 dark:text-blue-400 font-extrabold text-base leading-none">•</span>
-                    <span>{takeaway}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {post.content?.takeaways && post.content.takeaways.length > 0 && (
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-blue-950/20 via-surface to-indigo-950/20 dark:from-blue-950/30 dark:via-zinc-900 dark:to-indigo-950/30 border border-blue-500/30 space-y-4 shadow-xl">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <span>Key Takeaways for Developers</span>
+                </h3>
+                <ul className="space-y-2.5 text-xs sm:text-sm text-secondary dark:text-zinc-200">
+                  {post.content.takeaways.map((takeaway, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span className="text-blue-500 dark:text-blue-400 font-extrabold text-base leading-none">•</span>
+                      <span>{takeaway}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* FAQ Section for SEO Rich Results */}
-            {post.content.faqs && post.content.faqs.length > 0 && (
+            {post.content?.faqs && post.content.faqs.length > 0 && (
               <section className="space-y-4 pt-4">
                 <h3 className="text-xl font-bold text-primary dark:text-white flex items-center gap-2">
                   <HelpCircle className="w-5 h-5 text-blue-500 dark:text-blue-400" />
@@ -366,13 +415,13 @@ export default async function BlogPostPage({ params }: Props) {
             {/* Author Biography Box */}
             <div className="p-6 rounded-3xl bg-surface dark:bg-zinc-900/50 border border-border dark:border-zinc-800/80 flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-500/20 shrink-0">
-                {post.author.avatar}
+                {authorAvatar}
               </div>
               <div className="space-y-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">About the Author</span>
-                <h4 className="text-base font-bold text-primary dark:text-white">{post.author.name}</h4>
+                <h4 className="text-base font-bold text-primary dark:text-white">{authorName}</h4>
                 <p className="text-xs text-muted leading-relaxed">
-                  {post.author.bio}
+                  {authorBio}
                 </p>
               </div>
             </div>
@@ -482,7 +531,7 @@ export default async function BlogPostPage({ params }: Props) {
                 </div>
 
                 <div className="pt-4 mt-3 border-t border-border dark:border-zinc-800/60 flex items-center justify-between text-xs text-muted">
-                  <span>{rPost.author.name}</span>
+                  <span>{rPost.author?.name || 'Resizer Engineering'}</span>
                   <span className="text-blue-500 dark:text-blue-400 font-semibold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                     <span>Read</span>
                     <ChevronRight className="w-3.5 h-3.5" />

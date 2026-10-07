@@ -1,7 +1,18 @@
 import { MetadataRoute } from 'next';
 
-const SITE_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+/**
+ * Fallback slugs used ONLY if database is temporarily offline during build.
+ * Kept strictly in sync with active published posts in the database.
+ */
+const CURRENT_ACTIVE_BLOG_SLUGS = [
+  'smart-ai-image-resizer-resize-photos-online-for-free-architecture-codecs-performance-guide',
+  'ultra-fast-webp-transcoding-pipelines',
+  'instant-ai-image-resizer-perfect-dimensions-zero-quality-loss',
+  'future-of-web-imagery-hdr-jpegxl',
+];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const currentDate = new Date().toISOString();
@@ -9,7 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Core high-priority landing pages for Google indexation
   const staticRoutes: MetadataRoute.Sitemap = [
     {
-      url: `${SITE_URL}`,
+      url: `${SITE_URL}/`,
       lastModified: currentDate,
       changeFrequency: 'daily',
       priority: 1.0,
@@ -36,32 +47,48 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${SITE_URL}/blog`,
       lastModified: currentDate,
       changeFrequency: 'daily',
-      priority: 0.85,
+      priority: 0.9,
     },
     {
       url: `${SITE_URL}/privacy`,
       lastModified: currentDate,
       changeFrequency: 'monthly',
-      priority: 0.6,
+      priority: 0.5,
     },
   ];
 
-  // Dynamically load blog post slugs
+  // Dynamically load active blog post slugs strictly from live database
   let blogRoutes: MetadataRoute.Sitemap = [];
   try {
-    const res = await fetch(`${API_BASE}/blog/posts?limit=100`, { next: { revalidate: 3600 } });
+    const res = await fetch(`${API_BASE}/blog/posts?limit=500`, {
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(8000),
+    });
+
     if (res.ok) {
       const json = await res.json();
       const posts = json?.data?.posts || [];
-      blogRoutes = posts.map((post: { slug: string; updated_at?: string; created_at?: string }) => ({
-        url: `${SITE_URL}/blog/${post.slug}`,
-        lastModified: post.updated_at || post.created_at || currentDate,
-        changeFrequency: 'weekly' as const,
-        priority: 0.8,
-      }));
+      if (Array.isArray(posts) && posts.length > 0) {
+        blogRoutes = posts.map((post: { slug: string; updated_at?: string; created_at?: string }) => ({
+          url: `${SITE_URL}/blog/${post.slug}`,
+          lastModified: post.updated_at || post.created_at || currentDate,
+          changeFrequency: 'weekly' as const,
+          priority: 0.8,
+        }));
+      }
     }
   } catch (err) {
-    console.warn('Sitemap generation could not fetch live posts, falling back to static routes:', err);
+    console.warn('Sitemap live fetch failed, using active verified slugs fallback:', err);
+  }
+
+  // If DB returned nothing, fallback only to the current verified active slugs (never deleted posts)
+  if (blogRoutes.length === 0) {
+    blogRoutes = CURRENT_ACTIVE_BLOG_SLUGS.map((slug) => ({
+      url: `${SITE_URL}/blog/${slug}`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
   }
 
   return [...staticRoutes, ...blogRoutes];

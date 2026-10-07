@@ -1,5 +1,6 @@
 const aiService = require('../services/ai.service');
 const blogService = require('../services/blog.service');
+const { trackAIGeneration } = require('../services/posthog.service');
 
 /**
  * AI Settings Controller Handlers
@@ -22,14 +23,30 @@ const handleSaveAISettings = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Unable to load admin data.' });
+    // Never report a generic message here: a silent 500 is exactly why a failed
+    // save of new API keys looked like it had worked.
+    console.error('[AI settings save]', error.message);
+    return res.status(500).json({
+      success: false,
+      message: `Could not save settings: ${error.message}`,
+    });
   }
 };
 
 const handleTestAIConnection = async (req, res) => {
   try {
     const { provider, apiKey, model } = req.body;
+    const testStart = Date.now();
     const result = await aiService.testAIConnection({ provider, apiKey, model });
+    trackAIGeneration({
+      distinctId: req.user?.id != null ? String(req.user.id) : 'anonymous',
+      provider: result.provider || provider || 'openai',
+      model: model || null,
+      operation: 'test_connection',
+      latencyMs: Date.now() - testStart,
+      success: !!result.success,
+      error: result.success ? undefined : result.message,
+    });
     return res.status(result.success ? 200 : 400).json(result);
   } catch (error) {
     console.error('[AI blog generation]', error.message);
@@ -49,13 +66,25 @@ const handleAIGeneratePost = async (req, res) => {
     if (!prompt) {
       return res.status(400).json({ success: false, message: 'Article topic or prompt is required.' });
     }
-    const generatedData = await aiService.generatePostWithAI({ prompt, category, tone, customProvider: provider });
+    const generatedData = await aiService.generatePostWithAI({
+      prompt,
+      category,
+      tone,
+      customProvider: provider,
+      distinctId: req.user?.id != null ? String(req.user.id) : 'anonymous',
+    });
     return res.status(200).json({ success: true, data: generatedData });
   } catch (error) {
-    console.error('[AI image generation]', error.message);
-    return res.status(502).json({
+    console.error('[AI post generation]', error.message);
+    // Pass the per-provider breakdown through: "3 providers are configured but
+    // generation failed. openai: ... | gemini: ..." is actionable, whereas a
+    // bare "no provider configured" sent the operator chasing the wrong problem.
+    return res.status(error.code === 'NO_PROVIDER_CONFIGURED' ? 503 : 502).json({
       success: false,
-      message: error.message || 'AI image generation failed.',
+      message: error.message || 'AI blog generation failed.',
+      code: error.code || 'AI_GENERATION_FAILED',
+      providerErrors: error.providerErrors || {},
+      configuredProviders: error.configuredProviders || [],
     });
   }
 };

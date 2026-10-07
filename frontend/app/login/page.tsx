@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { AUTH_TOKEN_KEYS } from '../context/AuthContext';
 import { Lock, Mail, ArrowRight, CheckCircle2, AlertCircle, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {

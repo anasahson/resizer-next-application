@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { identifyUser, resetUser } from '../lib/posthog';
 
 export type UserRole = 'user' | 'superadmin';
 
@@ -122,6 +123,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setToken(active.token);
       setUser(cachedUser);
+      // Tie this PostHog visitor to the real account so per-page visitor
+      // counts can distinguish signed-in people from anonymous devices.
+      identifyUser(cachedUser);
       setIsLoading(false);
 
       // 2. Attempt to verify profile against backend
@@ -155,7 +159,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Session hydration intentionally updates state synchronously on mount so the
+  // app never flashes a logged-out frame while the stored JWT is validated.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadUserFromStorage();
   }, [loadUserFromStorage]);
 
@@ -187,9 +194,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(AUTH_TOKEN_KEYS.user, data.token);
       }
 
+      identifyUser(data.user);
+
       return { success: true, message: data.message, user: data.user };
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Network error during login.' };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      return { success: false, message: message || 'Network error during login.' };
     }
   };
 
@@ -211,10 +221,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem(AUTH_TOKEN_KEYS.user, data.token);
+      identifyUser(data.user);
 
       return { success: true, message: data.message };
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Network error during registration.' };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      return { success: false, message: message || 'Network error during registration.' };
     }
   };
 
@@ -245,8 +257,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { success: true, message: data.message, user: data.user };
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Network error during profile update.' };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      return { success: false, message: message || 'Network error during profile update.' };
     }
   };
 
@@ -259,6 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+    resetUser(); // stop attributing further events to the signed-out user
     const target = typeof redirectTo === 'string' ? redirectTo : '/login';
     if (typeof window !== 'undefined') {
       window.location.href = target;

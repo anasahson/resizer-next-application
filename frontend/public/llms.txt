@@ -1,0 +1,18 @@
+﻿# Resizora
+
+> Free online image resizer, compressor, and converter that runs entirely in your browser. Your files never leave your device.
+
+Resize images by exact pixels or by percentage, reduce file size without visible quality loss, and convert between WebP, AVIF, PNG, JPG, and HEIC. Batch processing supports up to 50 images per run, and the free tier requires no account.
+
+## Pages
+
+- [Home](https://resizer-ai.vercel.app/): main resizer studio with popular social size presets
+- [Tools](https://resizer-ai.vercel.app/tools): format converters and compression tools
+- [Features](https://resizer-ai.vercel.app/features): architecture and privacy model
+- [Pricing](https://resizer-ai.vercel.app/pricing): free tier plus Pro and Business plans
+- [Blog](https://resizer-ai.vercel.app/blog): image optimization and web performance guides
+
+## Crawling
+
+- Robots: https://resizer-ai.vercel.app/robots.txt
+- Sitemap: https://resizer-ai.vercel.app/sitemap.xml

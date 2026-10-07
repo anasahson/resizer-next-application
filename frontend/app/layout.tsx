@@ -4,6 +4,8 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { AuthProvider } from "./context/AuthContext";
+import PostHogProvider from "./components/PostHogProvider";
+import { Suspense } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,7 +17,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "https://resizora.com";
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || "https://resizora.com").replace(/\/+$/, "");
 
 export const viewport: Viewport = {
   themeColor: [
@@ -191,6 +193,87 @@ const jsonLdData = {
       ],
     },
     {
+      "@type": "ItemList",
+      "@id": `${SITE_URL}/#dimensions-presets`,
+      name: "Popular Presets & Dimensions: Recommended Dimensions for Social Media & Web",
+      description: "Official guide to standard pixel dimensions, aspect ratios, and resolutions for social networks, web banners, e-commerce, and passport photos.",
+      numberOfItems: 12,
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Instagram Square Post",
+          description: "1080 × 1080 pixels (1:1 aspect ratio). Best format: WebP or JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Instagram Story, Reel & TikTok Video",
+          description: "1080 × 1920 pixels (9:16 vertical aspect ratio). Best format: WebP or JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: "YouTube Video Thumbnail",
+          description: "1280 × 720 pixels (16:9 widescreen aspect ratio). Best format: WebP or JPG under 2MB.",
+        },
+        {
+          "@type": "ListItem",
+          position: 4,
+          name: "YouTube Channel Banner",
+          description: "2560 × 1440 pixels (16:9 aspect ratio). Best format: PNG or WebP under 6MB.",
+        },
+        {
+          "@type": "ListItem",
+          position: 5,
+          name: "Facebook Post & Shared Image",
+          description: "1200 × 630 pixels (1.91:1 landscape aspect ratio). Best format: PNG or JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 6,
+          name: "X / Twitter In-Stream Post",
+          description: "1200 × 675 pixels (16:9 aspect ratio). Best format: WebP or JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 7,
+          name: "LinkedIn Company Banner",
+          description: "1584 × 396 pixels (4:1 panoramic aspect ratio). Best format: PNG or JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 8,
+          name: "Amazon & Shopify Product Listing",
+          description: "2000 × 2000 pixels (1:1 high resolution square for zoom). Best format: WebP or JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 9,
+          name: "US Official Passport Photo",
+          description: "600 × 600 pixels (2×2 inches at 300 DPI, 1:1 square). Best format: JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 10,
+          name: "Schengen & UK Passport Photo",
+          description: "413 × 531 pixels (35×45 mm at 300 DPI). Best format: JPG.",
+        },
+        {
+          "@type": "ListItem",
+          position: 11,
+          name: "4K Ultra HD Display Wallpaper",
+          description: "3840 × 2160 pixels (16:9 aspect ratio). Best format: AVIF or WebP.",
+        },
+        {
+          "@type": "ListItem",
+          position: 12,
+          name: "Full HD 1080p Standard Display",
+          description: "1920 × 1080 pixels (16:9 aspect ratio). Best format: AVIF or WebP.",
+        },
+      ],
+    },
+    {
       "@type": "FAQPage",
       "@id": `${SITE_URL}/#faq`,
       mainEntity: [
@@ -254,11 +337,15 @@ export default function RootLayout({
 
       <body className="min-h-full flex flex-col bg-surface text-primary dark:bg-zinc-950 dark:text-white transition-colors duration-300">
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1 pt-16">
-            {children}
-          </main>
-          <Footer />
+          <Suspense fallback={null}>
+            <PostHogProvider>
+              <Navbar />
+              <main className="flex-1 pt-16">
+                {children}
+              </main>
+              <Footer />
+            </PostHogProvider>
+          </Suspense>
         </AuthProvider>
       </body>
     </html>

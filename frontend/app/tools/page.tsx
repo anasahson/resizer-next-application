@@ -128,31 +128,174 @@ export default function ToolsPage() {
     return fd;
   }, [outputFormat, quality, activeTool, targetWidth, targetHeight, fitMode, stripMeta, progressive]);
 
+  const processWithCanvas = useCallback(
+    async (img: ImageFile): Promise<ProcessedResult> => {
+      const startTime = performance.now();
+      return new Promise((resolve, reject) => {
+        const imageElement = new window.Image();
+        imageElement.crossOrigin = 'anonymous';
+
+        imageElement.onload = () => {
+          try {
+            const natW = Math.max(1, imageElement.naturalWidth || img.width || 100);
+            const natH = Math.max(1, imageElement.naturalHeight || img.height || 100);
+
+            let dstW = natW;
+            let dstH = natH;
+
+            if (activeTool === 'resize' || activeTool === 'batch') {
+              dstW = Math.max(1, Math.round(targetWidth || natW));
+              dstH = Math.max(1, Math.round(targetHeight || natH));
+
+              if (maintainRatio) {
+                const ratio = natW / natH;
+                if (fitMode === 'contain' || fitMode === 'inside') {
+                  if (dstW / dstH > ratio) {
+                    dstW = Math.max(1, Math.round(dstH * ratio));
+                  } else {
+                    dstH = Math.max(1, Math.round(dstW / ratio));
+                  }
+                } else if (fitMode === 'cover' || fitMode === 'outside') {
+                  if (dstW / dstH < ratio) {
+                    dstW = Math.max(1, Math.round(dstH * ratio));
+                  } else {
+                    dstH = Math.max(1, Math.round(dstW / ratio));
+                  }
+                }
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, dstW);
+            canvas.height = Math.max(1, dstH);
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              throw new Error('Canvas 2D context is unavailable in your browser.');
+            }
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            if (fitMode === 'cover') {
+              const srcRatio = natW / natH;
+              const dstRatio = dstW / dstH;
+              let sW = natW;
+              let sH = natH;
+              let sX = 0;
+              let sY = 0;
+              if (srcRatio > dstRatio) {
+                sW = natH * dstRatio;
+                sX = (natW - sW) / 2;
+              } else {
+                sH = natW / dstRatio;
+                sY = (natH - sH) / 2;
+              }
+              ctx.drawImage(imageElement, sX, sY, sW, sH, 0, 0, dstW, dstH);
+            } else {
+              ctx.drawImage(imageElement, 0, 0, dstW, dstH);
+            }
+
+            const mimeMap: Record<OutputFormat, string> = {
+              webp: 'image/webp',
+              avif: 'image/webp', // Fallback to webp if canvas encoder lacks AVIF support
+              jpeg: 'image/jpeg',
+              png: 'image/png',
+            };
+            const mime = mimeMap[outputFormat] || 'image/webp';
+            const q = Math.min(1, Math.max(0.1, quality / 100));
+
+            let dataUrl = '';
+            try {
+              dataUrl = canvas.toDataURL(mime, q);
+            } catch {
+              dataUrl = canvas.toDataURL('image/png');
+            }
+
+            const base64Index = dataUrl.indexOf(',');
+            const base64String = base64Index >= 0 ? dataUrl.substring(base64Index + 1) : dataUrl;
+            const outputSizeBytes = Math.round((base64String.length * 3) / 4);
+            const savingsPercent = Math.max(0, Math.min(100, Math.round((1 - outputSizeBytes / img.file.size) * 100)));
+            const ext = outputFormat === 'jpeg' ? 'jpg' : outputFormat;
+            const originalBase = img.file.name.replace(/\.[^/.]+$/, '');
+            const filename = `${originalBase}_optimized.${ext}`;
+            const processingTimeMs = Math.round(performance.now() - startTime);
+
+            resolve({
+              id: img.id,
+              filename,
+              originalSizeBytes: img.file.size,
+              outputSizeBytes,
+              savingsPercent,
+              width: dstW,
+              height: dstH,
+              format: outputFormat,
+              processingTimeMs,
+              dataBase64: dataUrl,
+            });
+          } catch (canvasErr) {
+            reject(canvasErr);
+          }
+        };
+
+        imageElement.onerror = () => {
+          reject(new Error(`Failed to decode image: ${img.file.name}`));
+        };
+
+        imageElement.src = img.previewUrl;
+      });
+    },
+    [activeTool, targetWidth, targetHeight, maintainRatio, fitMode, outputFormat, quality]
+  );
+
   const processImage = useCallback(async (img: ImageFile) => {
     setProcessing(prev => new Set(prev).add(img.id));
     setErrors(prev => { const m = new Map(prev); m.delete(img.id); return m; });
     try {
-      const res = await fetch(`${BACKEND_URL}/api/images/process`, { method: 'POST', body: buildFd(img.file) });
-      if (!res.ok) { const e = await res.json().catch(() => ({ message: 'Error' })); throw new Error(e.message || `HTTP ${res.status}`); }
-      const data = await res.json();
-      const r: ProcessedResult = {
-        id: img.id, filename: data.data?.filename || img.file.name,
-        originalSizeBytes: data.data?.originalSizeBytes ?? img.file.size,
-        outputSizeBytes: data.data?.outputSizeBytes ?? img.file.size,
-        savingsPercent: data.data?.savingsPercent ?? 0,
-        width: data.data?.width ?? img.width, height: data.data?.height ?? img.height,
-        format: data.data?.format ?? outputFormat, processingTimeMs: data.data?.processingTimeMs ?? 0,
-        dataBase64: data.data?.dataBase64 ?? '',
-      };
-      setResults(prev => new Map(prev).set(img.id, r));
+      let r: ProcessedResult | null = null;
+      // 1. Try backend processing first with ?responseType=json
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/images/process?responseType=json`, {
+          method: 'POST',
+          body: buildFd(img.file),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const base64 = data.dataBase64 || data.data?.dataBase64;
+          if (base64) {
+            r = {
+              id: img.id,
+              filename: data.filename || data.data?.filename || img.file.name,
+              originalSizeBytes: data.originalSizeBytes ?? data.data?.originalSizeBytes ?? img.file.size,
+              outputSizeBytes: data.outputSizeBytes ?? data.data?.outputSizeBytes ?? img.file.size,
+              savingsPercent: data.savingsPercent ?? data.data?.savingsPercent ?? 0,
+              width: data.width ?? data.data?.width ?? img.width,
+              height: data.height ?? data.data?.height ?? img.height,
+              format: data.format ?? data.data?.format ?? outputFormat,
+              processingTimeMs: data.processingTimeMs ?? data.data?.processingTimeMs ?? 0,
+              dataBase64: base64,
+            };
+          }
+        }
+      } catch (backendErr) {
+        console.warn('Backend unavailable, falling back to browser canvas engine:', backendErr);
+      }
+
+      // 2. Fallback to client-side HTML5 canvas if backend is unavailable or failed
+      if (!r) {
+        r = await processWithCanvas(img);
+      }
+
+      setResults(prev => new Map(prev).set(img.id, r!));
       showToast(`Done: ${img.file.name}`);
     } catch (e: any) {
-      setErrors(prev => new Map(prev).set(img.id, e.message));
-      showToast(e.message, false);
+      const msg = e instanceof Error ? e.message : 'Processing failed';
+      setErrors(prev => new Map(prev).set(img.id, msg));
+      showToast(msg, false);
     } finally {
       setProcessing(prev => { const s = new Set(prev); s.delete(img.id); return s; });
     }
-  }, [buildFd, outputFormat, showToast]);
+  }, [buildFd, outputFormat, showToast, processWithCanvas]);
 
   const processAll = useCallback(async () => { for (const img of images) await processImage(img); }, [images, processImage]);
 

@@ -1,13 +1,24 @@
 import { MetadataRoute } from 'next';
 
-const SITE_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com';
+// No trailing slash: a trailing slash here produced `Sitemap: https://host//sitemap.xml`
+// in robots.txt, and the Host directive must be a bare hostname (no scheme, no slash).
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/tools', '/features', '/pricing', '/blog', '/privacy'],
+        allow: [
+          '/',
+          '/tools',
+          '/features',
+          '/pricing',
+          '/blog',
+          '/blog/',
+          '/blog/*',
+          '/privacy',
+        ],
         disallow: [
           '/admin',
           '/admin/*',
@@ -16,21 +27,38 @@ export default function robots(): MetadataRoute.Robots {
           '/api/*',
           '/processor',
           '/referral',
+          '/login',
+          '/register',
+          '/share',
+          '/share/*',
         ],
       },
       {
         userAgent: 'Googlebot',
-        allow: ['/', '/tools', '/features', '/pricing', '/blog', '/privacy'],
+        allow: [
+          '/',
+          '/tools',
+          '/features',
+          '/pricing',
+          '/blog',
+          '/blog/',
+          '/blog/*',
+          '/privacy',
+        ],
         disallow: [
           '/admin',
           '/admin/*',
           '/dashboard',
           '/dashboard/*',
           '/api/*',
+          '/login',
+          '/register',
+          '/share',
+          '/share/*',
         ],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
+    host: new URL(SITE_URL).host,
   };
 }

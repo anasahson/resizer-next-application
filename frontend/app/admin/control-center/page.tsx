@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import PostsManager from './components/PostsManager';
 import SystemSettingsPage from './components/SystemSettingsPage';
+import PostHogPanel from './components/PostHogPanel';
 import {
   ShieldCheck,
   Server,
@@ -37,6 +38,7 @@ import {
   Globe,
   ExternalLink,
   Wand2,
+  BarChart3,
 } from 'lucide-react';
 
 interface SystemStats {
@@ -116,7 +118,7 @@ export default function SuperAdminControlCenterPage() {
   const { user, token, isSuperAdmin, isLoading, logout } = useAuth();
 
   // Active Admin Sidebar Tab
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'posts' | 'settings' | 'users' | 'logs' | 'studio'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'posts' | 'settings' | 'users' | 'logs' | 'studio' | 'posthog'>('telemetry');
 
   // Stats State
   const [system, setSystem] = useState<SystemStats | null>(null);
@@ -280,8 +282,8 @@ export default function SuperAdminControlCenterPage() {
       } else {
         triggerToast(data.message || 'Failed to update role', 'error');
       }
-    } catch (err: any) {
-      triggerToast(err.message || 'Error updating role', 'error');
+    } catch (err) {
+      triggerToast(err instanceof Error && err.message ? err.message : 'Error updating role', 'error');
     }
   };
 
@@ -297,7 +299,7 @@ export default function SuperAdminControlCenterPage() {
       triggerToast(data.message || 'Processing history cleared!');
       fetchStats();
       fetchJobs(1);
-    } catch (err: any) {
+    } catch {
       triggerToast('Failed to clear logs', 'error');
     }
   };
@@ -334,8 +336,8 @@ export default function SuperAdminControlCenterPage() {
       } else {
         triggerToast(data.error || 'Failed to process image', 'error');
       }
-    } catch (err: any) {
-      triggerToast(err.message || 'Error communicating with backend', 'error');
+    } catch (err) {
+      triggerToast(err instanceof Error && err.message ? err.message : 'Error communicating with backend', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -354,8 +356,11 @@ export default function SuperAdminControlCenterPage() {
     return matchesSearch && matchesRole;
   });
 
+  // Initial dashboard load. The fetch helpers flip their loading flags
+  // synchronously so the admin tabs show spinners right away.
   useEffect(() => {
     if (isSuperAdmin) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchStats();
       fetchJobs(1);
       fetchUsers();
@@ -534,6 +539,23 @@ export default function SuperAdminControlCenterPage() {
               </button>
 
               <button
+                onClick={() => setActiveTab('posthog')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'posthog'
+                    ? 'bg-indigo-50 dark:bg-gradient-to-r dark:from-indigo-600/40 dark:to-purple-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 shadow-sm'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <BarChart3 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span>PostHog Analytics</span>
+                </div>
+                <span className="text-[9px] font-mono bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-300 px-1.5 py-0.5 rounded font-bold">
+                  LIVE
+                </span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('studio')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   activeTab === 'studio'
@@ -697,6 +719,9 @@ export default function SuperAdminControlCenterPage() {
 
             {/* TAB: PLATFORM & AI SETTINGS (Master Settings Hub) */}
             {activeTab === 'settings' && <SystemSettingsPage />}
+
+            {/* TAB: POSTHOG ANALYTICS (reads data back from PostHog) */}
+            {activeTab === 'posthog' && <PostHogPanel />}
 
             {/* TAB 1: TELEMETRY */}
             {activeTab === 'telemetry' && (
