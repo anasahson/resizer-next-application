@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
@@ -53,9 +53,17 @@ export default function ToolsPage() {
   const [fitMode, setFitMode] = useState<FitMode>('contain');
   const [stripMeta, setStripMeta] = useState(true);
   const [progressive, setProgressive] = useState(false);
+  const [rotation, setRotation] = useState(0);
+  const [flipX, setFlipX] = useState(false);
+  const [flipY, setFlipY] = useState(false);
+  const [filter, setFilter] = useState<'none' | 'grayscale' | 'sepia' | 'blur'>('none');
+  const [watermark, setWatermark] = useState('');
   const [compareIdx, setCompareIdx] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [imgUrl, setImgUrl] = useState('');
+  const [loadingUrl, setLoadingUrl] = useState(false);
 
   const PRESETS = [
     { label: 'IG', w: 1080, h: 1080, title: 'Instagram 1:1' },
@@ -98,6 +106,49 @@ export default function ToolsPage() {
     setImages(prev => [...prev, ...next]);
     showToast(`${arr.length} image${arr.length > 1 ? 's' : ''} added`);
   }, [showToast]);
+
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        ingest(files);
+      }
+    };
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [ingest]);
+
+  const fetchFromUrl = async (url: string) => {
+    if (!url) return;
+    setLoadingUrl(true);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const blob = await res.blob();
+      if (!blob.type.startsWith('image/')) throw new Error('Not an image');
+      let ext = blob.type.split('/')[1] || 'jpg';
+      if (ext === 'jpeg') ext = 'jpg';
+      const filename = url.split('/').pop()?.split('?')[0] || `image.${ext}`;
+      const file = new File([blob], filename, { type: blob.type });
+      ingest([file]);
+      setImgUrl('');
+      showToast('Image loaded from URL');
+    } catch (e: unknown) {
+      showToast('Could not load image (CORS blocked or invalid URL)', false);
+    } finally {
+      setLoadingUrl(false);
+    }
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragActive(false); ingest(e.dataTransfer.files); }, [ingest]);
 
@@ -166,8 +217,9 @@ export default function ToolsPage() {
             }
 
             const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, dstW);
-            canvas.height = Math.max(1, dstH);
+            const isRotated = rotation === 90 || rotation === 270;
+            canvas.width = Math.max(1, isRotated ? dstH : dstW);
+            canvas.height = Math.max(1, isRotated ? dstW : dstH);
 
             const ctx = canvas.getContext('2d');
             if (!ctx) {
@@ -176,6 +228,16 @@ export default function ToolsPage() {
 
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
+
+            let filterStr = 'none';
+            if (filter === 'grayscale') filterStr = 'grayscale(100%)';
+            else if (filter === 'sepia') filterStr = 'sepia(100%)';
+            else if (filter === 'blur') filterStr = 'blur(4px)';
+            ctx.filter = filterStr;
+
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate((rotation * Math.PI) / 180);
+            ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
 
             if (fitMode === 'cover') {
               const srcRatio = natW / natH;
@@ -191,9 +253,24 @@ export default function ToolsPage() {
                 sH = natW / dstRatio;
                 sY = (natH - sH) / 2;
               }
-              ctx.drawImage(imageElement, sX, sY, sW, sH, 0, 0, dstW, dstH);
+              ctx.drawImage(imageElement, sX, sY, sW, sH, -dstW / 2, -dstH / 2, dstW, dstH);
             } else {
-              ctx.drawImage(imageElement, 0, 0, dstW, dstH);
+              ctx.drawImage(imageElement, -dstW / 2, -dstH / 2, dstW, dstH);
+            }
+
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.filter = 'none';
+
+            if (watermark) {
+              const fontSize = Math.max(20, Math.floor(canvas.width / 15));
+              ctx.font = `bold ${fontSize}px sans-serif`;
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+              ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+              ctx.lineWidth = Math.max(2, fontSize / 10);
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.strokeText(watermark, canvas.width / 2, canvas.height / 2);
+              ctx.fillText(watermark, canvas.width / 2, canvas.height / 2);
             }
 
             const mimeMap: Record<OutputFormat, string> = {
@@ -245,7 +322,7 @@ export default function ToolsPage() {
         imageElement.src = img.previewUrl;
       });
     },
-    [activeTool, targetWidth, targetHeight, maintainRatio, fitMode, outputFormat, quality]
+    [activeTool, targetWidth, targetHeight, maintainRatio, fitMode, outputFormat, quality, rotation, flipX, flipY, filter, watermark]
   );
 
   const processImage = useCallback(async (img: ImageFile) => {
@@ -253,32 +330,36 @@ export default function ToolsPage() {
     setErrors(prev => { const m = new Map(prev); m.delete(img.id); return m; });
     try {
       let r: ProcessedResult | null = null;
+      const advancedActive = rotation !== 0 || flipX || flipY || filter !== 'none' || watermark !== '';
+      
       // 1. Try backend processing first with ?responseType=json
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/images/process?responseType=json`, {
-          method: 'POST',
-          body: buildFd(img.file),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const base64 = data.dataBase64 || data.data?.dataBase64;
-          if (base64) {
-            r = {
-              id: img.id,
-              filename: data.filename || data.data?.filename || img.file.name,
-              originalSizeBytes: data.originalSizeBytes ?? data.data?.originalSizeBytes ?? img.file.size,
-              outputSizeBytes: data.outputSizeBytes ?? data.data?.outputSizeBytes ?? img.file.size,
-              savingsPercent: data.savingsPercent ?? data.data?.savingsPercent ?? 0,
-              width: data.width ?? data.data?.width ?? img.width,
-              height: data.height ?? data.data?.height ?? img.height,
-              format: data.format ?? data.data?.format ?? outputFormat,
-              processingTimeMs: data.processingTimeMs ?? data.data?.processingTimeMs ?? 0,
-              dataBase64: base64,
-            };
+      if (!advancedActive) {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/images/process?responseType=json`, {
+            method: 'POST',
+            body: buildFd(img.file),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const base64 = data.dataBase64 || data.data?.dataBase64;
+            if (base64) {
+              r = {
+                id: img.id,
+                filename: data.filename || data.data?.filename || img.file.name,
+                originalSizeBytes: data.originalSizeBytes ?? data.data?.originalSizeBytes ?? img.file.size,
+                outputSizeBytes: data.outputSizeBytes ?? data.data?.outputSizeBytes ?? img.file.size,
+                savingsPercent: data.savingsPercent ?? data.data?.savingsPercent ?? 0,
+                width: data.width ?? data.data?.width ?? img.width,
+                height: data.height ?? data.data?.height ?? img.height,
+                format: data.format ?? data.data?.format ?? outputFormat,
+                processingTimeMs: data.processingTimeMs ?? data.data?.processingTimeMs ?? 0,
+                dataBase64: base64,
+              };
+            }
           }
+        } catch (backendErr) {
+          console.warn('Backend unavailable, falling back to browser canvas engine:', backendErr);
         }
-      } catch (backendErr) {
-        console.warn('Backend unavailable, falling back to browser canvas engine:', backendErr);
       }
 
       // 2. Fallback to client-side HTML5 canvas if backend is unavailable or failed
@@ -288,14 +369,14 @@ export default function ToolsPage() {
 
       setResults(prev => new Map(prev).set(img.id, r!));
       showToast(`Done: ${img.file.name}`);
-    } catch (e: any) {
+    } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Processing failed';
       setErrors(prev => new Map(prev).set(img.id, msg));
       showToast(msg, false);
     } finally {
       setProcessing(prev => { const s = new Set(prev); s.delete(img.id); return s; });
     }
-  }, [buildFd, outputFormat, showToast, processWithCanvas]);
+  }, [buildFd, outputFormat, showToast, processWithCanvas, rotation, flipX, flipY, filter, watermark]);
 
   const processAll = useCallback(async () => { for (const img of images) await processImage(img); }, [images, processImage]);
 
@@ -425,6 +506,37 @@ export default function ToolsPage() {
               </div>
             )}
 
+            {/* Effects & Edits */}
+            <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">✨ Effects & Edits</h3>
+              
+              {/* Rotate & Flip */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500 mb-2">Transform</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setRotation(r => (r + 90) % 360)} className="flex-1 py-1.5 rounded-lg text-xs font-semibold border bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-700 hover:border-indigo-400">↻ Rotate {rotation}°</button>
+                  <button onClick={() => setFlipX(x => !x)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border ${flipX ? 'bg-indigo-600 text-white' : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'}`}>↔ Flip X</button>
+                  <button onClick={() => setFlipY(y => !y)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border ${flipY ? 'bg-indigo-600 text-white' : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'}`}>↕ Flip Y</button>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500 mb-2">Filters</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(['none', 'grayscale', 'sepia', 'blur'] as const).map(f => (
+                    <button key={f} onClick={() => setFilter(f)} className={`py-1.5 rounded-lg text-[11px] font-semibold border capitalize ${filter === f ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-700 hover:border-indigo-400'}`}>{f}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Watermark */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500 mb-1">Watermark Text</label>
+                <input type="text" value={watermark} onChange={e => setWatermark(e.target.value)} placeholder="e.g. MyBrand ©" className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white" />
+              </div>
+            </div>
+
             {/* Advanced */}
             <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">🔧 Advanced</h3>
@@ -432,7 +544,7 @@ export default function ToolsPage() {
                 { label: 'Strip Metadata', sub: 'Remove EXIF / GPS data', val: stripMeta, set: setStripMeta },
                 { label: 'Progressive', sub: 'Faster perceived load', val: progressive, set: setProgressive },
               ] as const).map(o => (
-                <button key={o.label} onClick={() => (o.set as any)((v: boolean) => !v)} className="flex items-center justify-between w-full">
+                <button key={o.label} onClick={() => o.set((v: boolean) => !v as unknown as any)} className="flex items-center justify-between w-full">
                   <div className="text-left">
                     <div className="text-xs font-semibold text-slate-700 dark:text-zinc-300">{o.label}</div>
                     <div className="text-[10px] text-slate-500 dark:text-zinc-500">{o.sub}</div>
@@ -474,11 +586,35 @@ export default function ToolsPage() {
               <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) ingest(e.target.files); e.target.value = ''; }} />
               <div className={`text-5xl mb-3 transition-transform duration-200 ${dragActive ? 'scale-125' : ''}`}>{dragActive ? '🎯' : '🖼️'}</div>
               <p className="text-lg font-bold text-slate-800 dark:text-zinc-100">{dragActive ? 'Drop to upload!' : 'Drag & drop images here'}</p>
-              <p className="text-sm text-slate-500 dark:text-zinc-500 mt-1">JPG, PNG, WebP, AVIF, TIFF, GIF · Up to 20 images · 50 MB each</p>
-              <div className="mt-5 flex items-center gap-3" onClick={e => e.stopPropagation()}>
-                <button onClick={() => fileRef.current?.click()} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow transition-all hover:scale-105">Browse Files</button>
+              <p className="text-sm text-slate-500 dark:text-zinc-500 mt-1">JPG, PNG, WebP, AVIF, TIFF, GIF · Up to 20 images · 50 MB each · <span className="font-bold text-indigo-500">Ctrl+V to paste</span></p>
+              
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full max-w-2xl mx-auto" onClick={e => e.stopPropagation()}>
+                <button onClick={() => fileRef.current?.click()} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow transition-all hover:scale-105 whitespace-nowrap">
+                  Browse Files
+                </button>
+                
+                <div className="flex-1 w-full flex bg-white dark:bg-zinc-800 rounded-xl border border-slate-300 dark:border-zinc-700 overflow-hidden shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+                  <input 
+                    type="url" 
+                    value={imgUrl} 
+                    onChange={e => setImgUrl(e.target.value)} 
+                    placeholder="Paste image URL here..." 
+                    className="w-full px-4 py-2 bg-transparent text-sm focus:outline-none dark:text-white" 
+                    onKeyDown={e => e.key === 'Enter' && fetchFromUrl(imgUrl)} 
+                  />
+                  <button 
+                    onClick={() => fetchFromUrl(imgUrl)} 
+                    disabled={loadingUrl || !imgUrl} 
+                    className="px-4 py-2 bg-slate-100 dark:bg-zinc-700/50 hover:bg-slate-200 dark:hover:bg-zinc-600 text-xs font-bold text-slate-700 dark:text-zinc-300 transition-colors border-l border-slate-300 dark:border-zinc-700 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {loadingUrl ? 'Loading...' : 'Add URL'}
+                  </button>
+                </div>
+
                 {images.length > 0 && (
-                  <button onClick={clearAll} className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-semibold border border-slate-200 dark:border-zinc-700 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 transition-all">Clear All ({images.length})</button>
+                  <button onClick={clearAll} className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-semibold border border-slate-200 dark:border-zinc-700 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 transition-all whitespace-nowrap">
+                    Clear All ({images.length})
+                  </button>
                 )}
               </div>
             </div>

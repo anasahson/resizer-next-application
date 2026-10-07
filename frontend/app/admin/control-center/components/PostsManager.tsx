@@ -54,18 +54,6 @@ export default function PostsManager() {
     return typeof window !== 'undefined' ? localStorage.getItem('resizer_superadmin_auth_token') || '' : '';
   };
 
-  useEffect(() => {
-    setPage(1);
-    fetchPosts(1);
-  }, [category]);
-  
-  useEffect(() => {
-    setCustomCategories(loadCustomPostCategories());
-    const refreshCategories = () => setCustomCategories(loadCustomPostCategories());
-    window.addEventListener('resizer-post-categories-updated', refreshCategories);
-    return () => window.removeEventListener('resizer-post-categories-updated', refreshCategories);
-  }, []);
-
   const fetchPosts = async (requestedPage = page) => {
     try {
       setLoading(true);
@@ -85,6 +73,20 @@ export default function PostsManager() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setPage(1);
+    fetchPosts(1);
+  }, [category]);
+  
+  useEffect(() => {
+    setCustomCategories(loadCustomPostCategories());
+    const refreshCategories = () => setCustomCategories(loadCustomPostCategories());
+    window.addEventListener('resizer-post-categories-updated', refreshCategories);
+    return () => window.removeEventListener('resizer-post-categories-updated', refreshCategories);
+  }, []);
+
+
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Are you sure you want to delete "${title}"?`)) return;

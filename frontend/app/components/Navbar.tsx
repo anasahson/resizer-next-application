@@ -203,7 +203,9 @@ export default function Navbar() {
           </button>
 
           {/* User Auth Profile Dropdown / Login Button */}
-          {user ? (
+          {!mounted ? (
+            <div className="w-16 h-9" />
+          ) : user ? (
             <div className="relative">
               <button
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
