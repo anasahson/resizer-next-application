@@ -23,8 +23,8 @@ export default function RegisterPage() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters long.');
+    if (password.length < 12) {
+      setErrorMessage('Password must be at least 12 characters long.');
       return;
     }
 
@@ -83,14 +83,17 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+              <label htmlFor="register-name" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
                 Full Name
               </label>
               <div className="relative">
                 <UserIcon className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
+                  id="register-name"
+                  name="name"
                   type="text"
                   required
+                  autoComplete="name"
                   placeholder="Alex Johnson"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -100,14 +103,17 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+              <label htmlFor="register-email" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
                 Email Address
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
+                  id="register-email"
+                  name="email"
                   type="email"
                   required
+                  autoComplete="email"
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -117,15 +123,19 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+              <label htmlFor="register-password" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
                 Password
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
+                  id="register-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="At least 6 characters"
+                  autoComplete="new-password"
+                  minLength={12}
+                  placeholder="At least 12 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-surface-elevated dark:bg-zinc-950/80 border border-border dark:border-zinc-800 rounded-xl pl-10 pr-10 py-2.5 text-sm text-primary dark:text-white placeholder:text-muted focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
@@ -140,6 +150,19 @@ export default function RegisterPage() {
                 </button>
               </div>
             </div>
+
+            <label htmlFor="register-terms" className="flex items-start gap-2 text-xs text-muted">
+              <input
+                id="register-terms"
+                name="terms"
+                type="checkbox"
+                required
+                className="mt-0.5 accent-indigo-600"
+              />
+              <span>
+                I agree to the <Link href="/terms" className="font-semibold text-indigo-500 underline underline-offset-4">Terms of Service</Link> and <Link href="/privacy" className="font-semibold text-indigo-500 underline underline-offset-4">Privacy Policy</Link>.
+              </span>
+            </label>
 
             <button
               type="submit"

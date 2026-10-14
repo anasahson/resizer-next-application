@@ -71,7 +71,7 @@ const STORAGE_KEY = 'resizora_host_queue';
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') ||
-  'http://localhost:5000';
+  '';
 
 type Listener = (snapshot: QueueSnapshot) => void;
 

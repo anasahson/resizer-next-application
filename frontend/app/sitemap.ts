@@ -6,8 +6,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 /**
  * Fallback slugs used ONLY if database is temporarily offline during build.
  * Kept strictly in sync with active published posts in the database.
+ *
+ * Exported so the /blog structured data (app/blog/layout.tsx) can advertise the
+ * same verified set without a second copy drifting out of sync.
  */
-const CURRENT_ACTIVE_BLOG_SLUGS = [
+export const CURRENT_ACTIVE_BLOG_SLUGS = [
   'smart-ai-image-resizer-resize-photos-online-for-free-architecture-codecs-performance-guide',
   'ultra-fast-webp-transcoding-pipelines',
   'instant-ai-image-resizer-perfect-dimensions-zero-quality-loss',

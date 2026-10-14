@@ -11,8 +11,10 @@ export default function ThemeDraggable() {
 
   const trackRef = useRef<HTMLDivElement>(null);
 
-  // Initialize theme from DOM / localStorage
+  // Initialize theme from DOM / localStorage. The mounted flag has to flip on
+  // mount so SSR/client renders stay identical until hydration.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const saved = localStorage.getItem('resizer-theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

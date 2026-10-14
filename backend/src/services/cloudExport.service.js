@@ -18,14 +18,12 @@ async function exportToImgbb({ fileBuffer, filename, name }) {
   return {
     success: true,
     provider: 'imgbb',
-    id: uploaded.id,
-    url: uploaded.url,
-    displayUrl: uploaded.displayUrl,
-    viewUrl: uploaded.viewUrl,
-    thumbUrl: uploaded.thumbUrl,
-    deleteUrl: uploaded.deleteUrl,
-    sizeBytes: uploaded.size,
+    imageUrl: uploaded.url,
+    width: uploaded.width,
+    height: uploaded.height,
+    filename: filename || name || 'image.webp',
     mimeType: uploaded.mime,
+    sizeBytes: uploaded.size,
   };
 }
 

@@ -90,14 +90,17 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+              <label htmlFor="login-email" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
                 Email Address
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
                   required
+                  autoComplete="email"
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -107,14 +110,17 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+              <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
                 Password
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
+                  id="login-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -129,6 +135,15 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            <div className="-mt-2 text-right">
+              <a
+                href="mailto:support@resizora.com?subject=Password%20reset%20request"
+                className="text-xs font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-4"
+              >
+                Forgot password?
+              </a>
             </div>
 
             <button

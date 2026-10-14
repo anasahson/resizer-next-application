@@ -81,6 +81,7 @@ async function processImage(req, res, next) {
       blur,
       sharpen,
       background,
+      allowUpscale = false,
     } = req.body;
 
     targetFormat = (format || 'webp').toLowerCase();
@@ -151,13 +152,15 @@ async function processImage(req, res, next) {
       sharpFit = 'contain';
     }
 
+    const mayEnlarge = allowUpscale === 'true' || allowUpscale === true;
+
     if (parsedWidth || parsedHeight) {
       const resizeOpts = {
         width: parsedWidth,
         height: parsedHeight,
         fit: sharpFit,
         position: sharpPosition,
-        withoutEnlargement: false,
+        withoutEnlargement: !mayEnlarge,
       };
       if (background) {
         resizeOpts.background = background;
@@ -288,8 +291,15 @@ async function processBatch(req, res, next) {
       grayscale,
       blur,
       sharpen,
+       saturation = 100,
+       brightness = 100,
+       contrast = 100,
       background,
+      allowUpscale = false,
     } = req.body;
+     const saturationNum = parseFloat(saturation);
+     const brightnessNum = parseFloat(brightness);
+     const contrastNum = parseFloat(contrast);
 
     let baseWidth = width ? parseInt(width, 10) : undefined;
     let baseHeight = height ? parseInt(height, 10) : undefined;
@@ -347,12 +357,24 @@ async function processBatch(req, res, next) {
           if (sharpen === 'true' || sharpen === true) {
             pipeline = pipeline.sharpen();
           }
+           // Saturation, Brightness, Contrast
+           if (!isNaN(saturationNum) && saturationNum !== 100) {
+             pipeline = pipeline.saturate(saturationNum / 100);
+           }
+           if (!isNaN(brightnessNum) && brightnessNum !== 100) {
+             pipeline = pipeline.brightness(brightnessNum / 100);
+           }
+           if (!isNaN(contrastNum) && contrastNum !== 100) {
+             pipeline = pipeline.contrast(contrastNum / 100);
+           }
 
           if (itemWidth || itemHeight) {
+            const mayEnlarge = allowUpscale === 'true' || allowUpscale === true;
             const resizeOpts = {
               width: itemWidth,
               height: itemHeight,
               fit: fit === 'fill' ? 'cover' : fit === 'stretch' ? 'fill' : 'inside',
+              withoutEnlargement: !mayEnlarge,
             };
             if (background) {
               resizeOpts.background = background;

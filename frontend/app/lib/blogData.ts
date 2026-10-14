@@ -446,7 +446,7 @@ export function getPostBySlug(slug: string): BlogPost | undefined {
 
 export async function getLivePostBySlug(slug: string): Promise<BlogPost | undefined> {
   try {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
     const res = await fetch(`${apiBase}/blog/posts/${slug}`, { cache: 'no-store' });
     if (res.status === 404) {
       // The post was explicitly deleted or does not exist in DB

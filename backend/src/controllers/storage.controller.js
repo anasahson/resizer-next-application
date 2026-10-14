@@ -101,24 +101,14 @@ async function handleStorageUpload(req, res) {
 
     return res.status(201).json({
       success: true,
-      // The direct CDN url is the canonical shareable link.
+      // Only the public image URL and minimal file metadata are exposed to the
+      // browser. Server-side hosting details remain private to the backend.
       imageUrl: uploaded.url,
-      displayUrl: uploaded.displayUrl,
-      viewUrl: uploaded.viewUrl,
-      thumbUrl: uploaded.thumbUrl,
-      hosting: {
-        id: uploaded.id,
-        deleteUrl: uploaded.deleteUrl,
-        expiration: uploaded.expiration,
-      },
       width: uploaded.width,
       height: uploaded.height,
       filename,
       mimeType: uploaded.mime || upload.mimeType,
       sizeBytes: uploaded.size || upload.buffer.length,
-      // Nothing is persisted to a database by design.
-      persisted: false,
-      logFile: currentLogFile(),
     });
   } catch (err) {
     // Record the failure so "where did it fail" is answerable later — this is
@@ -214,10 +204,13 @@ async function handleListStoredImages(req, res) {
     return res.json({
       success: true,
       count: images.length,
-      source: 'hosting-log',
       images: images.map((img) => ({
-        ...img,
+        id: img.id,
+        filename: img.filename,
+        mimeType: img.mimeType,
+        sizeBytes: img.sizeBytes,
         imageUrl: img.url,
+        timestamp: img.timestamp,
       })),
     });
   } catch (err) {

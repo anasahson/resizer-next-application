@@ -7,7 +7,7 @@ import { Zap, ArrowRight, CheckCircle2, TrendingDown, Sparkles, Shield, Clock, M
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
-  || 'http://localhost:5000';
+  || '';
 
 interface ShareResult {
   share_id: string;

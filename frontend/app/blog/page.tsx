@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Search, Clock, ArrowRight, BookOpen, Sparkles, Filter } from 'lucide-react';
 import { BLOG_POSTS, BlogPost as StaticBlogPost } from '../lib/blogData';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface BlogPostItem {
   id: string;

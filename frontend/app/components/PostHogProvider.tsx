@@ -1,28 +1,47 @@
 'use client';
 
-import { useEffect } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { initPostHog } from '../lib/posthog';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { initPostHog, optOutPostHog } from '../lib/posthog';
 import { initFrontendTracking, resetSectionTracking } from '../lib/tracking';
+import { getConsent, onConsentChange } from '../lib/consent';
+import ConsentBanner from './ConsentBanner';
 import posthog from 'posthog-js';
 
 export default function PostHogProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // Drives the consent banner; `undefined` = decision not yet known (SSR /
+  // first paint), so nothing is initialised and no banner flashes.
+  const [consentKnown, setConsentKnown] = useState<boolean | null>(null);
 
-  // Initialize once on mount
+  // Resolve the stored decision, then start analytics only if granted.
   useEffect(() => {
-    initPostHog();
-    initFrontendTracking();
+    const granted = getConsent() === 'granted';
+    setConsentKnown(true);
+    if (granted) {
+      initPostHog();
+      initFrontendTracking();
+    }
+    return onConsentChange((next) => {
+      if (next) {
+        initPostHog();
+        initFrontendTracking();
+      } else {
+        optOutPostHog();
+      }
+    });
   }, []);
 
-  // Track page views on route changes
+
+  // Track page views on route changes. Skipped entirely without consent, and
+  // no-op'd by posthog.capture itself while the SDK is unloaded.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (getConsent() !== 'granted') return;
     resetSectionTracking();
-    const url = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '');
-    posthog.capture('$pageview', { $current_url: window.location.origin + url });
-  }, [pathname, searchParams]);
+    // window.location already carries pathname + query string.
+    posthog.capture('$pageview', { $current_url: window.location.href });
+  }, [pathname]);
 
   // Report uncaught errors & promise rejections to PostHog Error Tracking.
   // posthog-js does NOT capture these on its own (verified against the
@@ -62,5 +81,11 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
     };
   }, []);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {/* Only rendered until a choice is stored; analytics stay off while visible. */}
+      {consentKnown && <ConsentBanner />}
+    </>
+  );
 }

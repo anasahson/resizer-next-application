@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 
 /**
  * Upload guards.
@@ -23,9 +24,13 @@ const uploadLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   // Signed-in users get their own bucket so a shared NAT IP is less punishing.
+  // Anonymous requests MUST go through ipKeyGenerator: passing raw req.ip makes
+  // express-rate-limit throw ERR_ERL_KEY_GEN_IPV6, and keying each IPv6 address
+  // individually would let one host rotate addresses to bypass the limit.
   keyGenerator: (req) => {
     const userId = req.user && req.user.id;
-    return userId ? `u:${userId}` : `ip:${req.ip}`;
+    if (userId) return `u:${userId}`;
+    return ipKeyGenerator(req.ip, 64);
   },
   message: {
     success: false,

@@ -41,8 +41,10 @@ export default function Navbar() {
   const [darkMode, setDarkMode] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Sync theme with localStorage and document classes
+  // Sync theme with localStorage and document classes. The mounted flag has to
+  // flip on mount so SSR/client renders stay identical until hydration.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const saved = localStorage.getItem('resizer-theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -57,8 +59,10 @@ export default function Navbar() {
     }
   }, []);
 
-  // Close mobile menu on route change
+  // Close mobile menu on route change — menus must reset exactly when the
+  // route changes, which only an effect can observe.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileMenuOpen(false);
     setToolsDropdownOpen(false);
     setUserDropdownOpen(false);

@@ -111,11 +111,16 @@ interface UserRecord {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
-  || 'http://localhost:5000';
+  || '';
 
 export default function SuperAdminControlCenterPage() {
   const router = useRouter();
   const { user, token, isSuperAdmin, isLoading, logout } = useAuth();
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Active Admin Sidebar Tab
   const [activeTab, setActiveTab] = useState<'telemetry' | 'posts' | 'settings' | 'users' | 'logs' | 'studio' | 'posthog'>('telemetry');
@@ -380,11 +385,13 @@ export default function SuperAdminControlCenterPage() {
   // =========================================================================
   // ACCESS GUARD: RESTRICT NON-SUPERADMINS
   // =========================================================================
-  if (isLoading) {
+  if (!hasMounted || isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-400">
-        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500 mr-2" />
-        <span>Verifying SuperAdmin credentials...</span>
+      <div className="min-h-[85vh] bg-zinc-950 flex items-center justify-center text-zinc-400 px-4">
+        <div className="flex items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/70 px-5 py-3 shadow-lg shadow-black/20">
+          <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+          <span className="text-sm font-medium">Verifying SuperAdmin credentials...</span>
+        </div>
       </div>
     );
   }

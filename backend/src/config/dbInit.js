@@ -50,6 +50,21 @@ const initDb = async () => {
     `;
     await connection.query(createUserTableQuery);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id VARCHAR(191) PRIMARY KEY,
+        user_id VARCHAR(191) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used_at DATETIME DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_prt_hash (token_hash),
+        INDEX idx_prt_user (user_id),
+        INDEX idx_prt_expires (expires_at),
+        FOREIGN KEY (user_id) REFERENCES User(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // 3. Initialize subscriptions table
     const createSubscriptionsTableQuery = `
       CREATE TABLE IF NOT EXISTS subscriptions (

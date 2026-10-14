@@ -22,7 +22,7 @@ import { BUILT_IN_POST_CATEGORIES, loadCustomPostCategories } from './postCatego
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
-  || 'http://localhost:5000';
+  || '';
 
 const POST_CATEGORIES = [
   { value: 'All', label: 'All posts', description: 'Every article' },
@@ -75,11 +75,16 @@ export default function PostsManager() {
   };
 
   useEffect(() => {
+    // Pagination must reset the moment the category filter changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
     fetchPosts(1);
   }, [category]);
   
   useEffect(() => {
+    // localStorage is only readable client-side, so the initial hydrate of the
+    // custom category list has to happen here, synchronously on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomCategories(loadCustomPostCategories());
     const refreshCategories = () => setCustomCategories(loadCustomPostCategories());
     window.addEventListener('resizer-post-categories-updated', refreshCategories);

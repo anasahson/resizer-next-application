@@ -42,7 +42,7 @@ import {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
-  || 'http://localhost:5000';
+  || '';
 
 // Canonical public origin — used for structured data so schema.org URLs match
 // the real domain (they previously claimed resizer.io, a different site).
@@ -209,7 +209,7 @@ export default function Resizer() {
   // ===== STATE =====
   const [files, setFiles] = useState<File[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
-  const [currentPreset, setCurrentPreset] = useState<string | null>('instagram-post');
+  const [currentPreset, setCurrentPreset] = useState<string | null>(null);
   const [presetCategory, setPresetCategory] = useState<'social' | 'ecommerce' | 'devices' | 'print'>('social');
   const [maintainRatio, setMaintainRatio] = useState(true);
   const [fitMode, setFitMode] = useState<'fit' | 'fill' | 'stretch' | 'contain'>('fit');
@@ -253,6 +253,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
   const [sharpen, setSharpen] = useState<boolean>(false);
   const [padColor, setPadColor] = useState<string>('#ffffff');
   const [usePadColor, setUsePadColor] = useState<boolean>(false);
+  const [allowUpscale, setAllowUpscale] = useState<boolean>(false);
 
   // ===== PREVIEW & COMPARE CONTROLS =====
   const [compareMode, setCompareMode] = useState<'split' | 'side' | 'result'>('split');
@@ -275,6 +276,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const afterPreviewRef = useRef<HTMLDivElement>(null);
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const userSetSizeRef = useRef(false);
 
   // ===== PRESETS =====
   const presets: Record<string, PresetItem> = {
@@ -338,6 +340,12 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
         originalWidthRef.current = img.naturalWidth;
         originalHeightRef.current = img.naturalHeight;
         setOriginalDims({ w: img.naturalWidth, h: img.naturalHeight });
+        if (!userSetSizeRef.current && files.length === 0) {
+          setWidth(Math.max(1, img.naturalWidth));
+          setHeight(Math.max(1, img.naturalHeight));
+          setScale(100);
+          setCurrentPreset(null);
+        }
       };
       img.src = URL.createObjectURL(activeFile);
     }
@@ -382,9 +390,20 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     const img = new Image();
     const url = URL.createObjectURL(currentFile);
     img.onload = () => {
-      originalWidthRef.current = img.naturalWidth;
-      originalHeightRef.current = img.naturalHeight;
-      setOriginalDims({ w: img.naturalWidth, h: img.naturalHeight });
+      const w = Math.max(1, img.naturalWidth);
+      const h = Math.max(1, img.naturalHeight);
+      originalWidthRef.current = w;
+      originalHeightRef.current = h;
+      setOriginalDims({ w, h });
+      // Keep the target at the source size unless the user already picked a
+      // preset or typed custom dimensions — otherwise tiny rasters and SVGs
+      // inherit the leftover 1080×1080 / 1280×720 defaults and get upscaled.
+      if (!userSetSizeRef.current) {
+        setWidth(w);
+        setHeight(h);
+        setScale(100);
+        setCurrentPreset(null);
+      }
       URL.revokeObjectURL(url);
     };
     img.src = url;
@@ -516,6 +535,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     setPendingPreset(presetKey);
     const p = presets[presetKey];
     if (p) {
+      userSetSizeRef.current = true;
       setWidth(p.w);
       setHeight(p.h);
       setScale(Math.round((p.w / (originalDims?.w || originalWidthRef.current)) * 100));
@@ -543,6 +563,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     if (isNaN(val)) return;
 
     const w = Math.max(1, val);
+    userSetSizeRef.current = true;
     setWidth(w);
 
     const origW = originalDims?.w || originalWidthRef.current;
@@ -562,6 +583,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     if (isNaN(val)) return;
 
     const h = Math.max(1, val);
+    userSetSizeRef.current = true;
     setHeight(h);
 
     const origW = originalDims?.w || originalWidthRef.current;
@@ -584,6 +606,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
   };
 
   const updateScale = (val: number) => {
+    userSetSizeRef.current = true;
     setScale(val);
     const origW = originalDims?.w || originalWidthRef.current;
     const origH = originalDims?.h || originalHeightRef.current;
@@ -593,9 +616,14 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
   };
 
   const resetAllSettings = () => {
-    setWidth(1080);
-    setHeight(1080);
+    userSetSizeRef.current = false;
+    setAllowUpscale(false);
+    const nativeW = originalDims?.w || originalWidthRef.current;
+    const nativeH = originalDims?.h || originalHeightRef.current;
+    setWidth(nativeW);
+    setHeight(nativeH);
     setScale(100);
+    setCurrentPreset(null);
     setMaintainRatio(true);
     setFitMode('fit');
     setFormat('webp');
@@ -612,7 +640,6 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     setSharpen(false);
     setUsePadColor(false);
     setTargetMaxKb(null);
-    setCurrentPreset('instagram-post');
     showToast('Settings reset to defaults');
   };
 
@@ -632,6 +659,20 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
   // ===== PROCESSING (Real Sharp engine via backend batch API) =====
   const processImages = useCallback(async () => {
     if (downloadState !== 'idle' || files.length === 0) return;
+    if (!originalDims) {
+      showToast('Reading image dimensions. Please try again in a moment.', 'info');
+      return;
+    }
+    if (
+      (width > originalDims.w || height > originalDims.h) &&
+      !allowUpscale
+    ) {
+      showToast(
+        `This would upscale ${originalDims.w}×${originalDims.h} to ${width}×${height}. Enable “Allow upscaling” to continue.`,
+        'error'
+      );
+      return;
+    }
     setDownloadState('processing');
     setProcessingError(null);
     setResults([]);
@@ -652,6 +693,11 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     if (blurVal > 0) formData.append('blur', String(Math.max(0.3, blurVal)));
     if (sharpen) formData.append('sharpen', 'true');
     if (usePadColor && padColor) formData.append('background', padColor);
+    if (allowUpscale) formData.append('allowUpscale', 'true');
+     // Send adjustment filters
+     if (saturation !== 100) formData.append('saturation', String(saturation));
+     if (brightness !== 100) formData.append('brightness', String(brightness));
+     if (contrast !== 100) formData.append('contrast', String(contrast));
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/images/batch?responseType=json`, {
@@ -700,7 +746,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
       setDownloadState('idle');
       showToast(message || 'Processing error', 'error');
     }
-  }, [downloadState, files, width, height, format, quality, fitMode, maintainRatio, aiCrop, rotate, flipH, flipV, filterPreset, blurVal, sharpen, usePadColor, padColor, showToast, selectedIndex, filenameSuffix]);
+  }, [downloadState, files, width, height, format, quality, fitMode, maintainRatio, aiCrop, rotate, flipH, flipV, filterPreset, blurVal, sharpen, usePadColor, padColor, showToast, selectedIndex, filenameSuffix, originalDims, allowUpscale, saturation, brightness, contrast]);
 
   // Live view of the auto-upload queue.
   useEffect(() => uploadQueue.subscribe(setHostQueue), []);
@@ -887,6 +933,8 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     setPendingPreset(null);
     setResults([]);
     setProcessingError(null);
+    userSetSizeRef.current = false;
+    setAllowUpscale(false);
     setWidth(1080);
     setHeight(1080);
     setScale(100);
@@ -917,6 +965,10 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
     const displayH = Math.max(48, Math.round((180 * height) / maxDim));
     return { displayW, displayH };
   }, [width, height]);
+
+  const isUpscaling = Boolean(
+    originalDims && (width > originalDims.w || height > originalDims.h)
+  );
 
   const estimated = useMemo(() => {
     // Refs mirror these dimensions but may only be read from event handlers,
@@ -1008,54 +1060,74 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
           }),
         }}
       />
-      {/* ===== HERO SECTION ===== */}
       {files.length === 0 && (
-        <section data-track-section="hero" className="text-center pt-4 pb-10 sm:pt-8">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold mb-6">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-            <span>100% Private · Runs Entirely in Your Browser</span>
-          </div>
-
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] mb-5 bg-gradient-to-r from-primary via-blue-600 to-indigo-600 dark:from-white dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-            Free Online Image Resizer — Resize Images in Pixels & Percentage
-          </h1>
-
-          <p className="text-base sm:text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
-            Quickly resize, compress, and convert images online for free. Adjust exact pixel dimensions, shrink file size in KB without losing quality, and batch-process up to 50 photos in 100% private in-browser speed.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-            <button
-              onClick={() => document.getElementById('resizer-studio')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-7 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-2"
-            >
-              <span>Start Resizing Free</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-            </button>
-            <Link
-              href="/tools"
-              className="px-7 py-3.5 bg-surface-elevated dark:bg-zinc-900 border border-border hover:border-accent/50 text-primary dark:text-white font-semibold rounded-2xl transition-colors"
-            >
-              Browse All Tools
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto">
-            {[
-              { value: '50', label: 'Images per batch' },
-              { value: '5', label: 'Output formats' },
-              { value: '0 KB', label: 'Uploaded to cloud' },
-              { value: '~85%', label: 'Max size reduction' },
-            ].map((stat) => (
-              <div key={stat.label} className="p-3.5 bg-surface-elevated dark:bg-zinc-900/60 rounded-2xl border border-border/50">
-                <div className="text-xl sm:text-2xl font-extrabold text-primary dark:text-white">{stat.value}</div>
-                <div className="text-[11px] text-muted mt-0.5">{stat.label}</div>
+        <section className="mb-6 overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-slate-50 via-white to-blue-50/70 p-4 shadow-[0_18px_60px_-30px_rgba(37,99,235,0.45)] dark:from-zinc-950 dark:via-zinc-900 dark:to-blue-950/40 sm:p-6 lg:p-7">
+          <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
+            <div>
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                <Sparkles className="h-3.5 w-3.5" />
+                Private, fast, browser-native
               </div>
-            ))}
+
+              <h1 className="max-w-2xl text-4xl font-black tracking-[-0.05em] text-primary dark:text-white sm:text-5xl lg:text-[3.4rem] lg:leading-[1.02]">
+                Resize images in seconds.
+              </h1>
+
+              <p className="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+                Convert, compress, and resize photos for social media, ecommerce, web banners, and print — all from your browser with no upload required.
+              </p>
+
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => document.getElementById('resizer-studio')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.01] hover:from-blue-500 hover:to-indigo-500"
+                >
+                  Start resizing free
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <Link
+                  href="/tools"
+                  className="rounded-2xl border border-border bg-white/70 px-5 py-3 text-sm font-semibold text-primary transition-colors hover:border-blue-400 hover:text-blue-600 dark:bg-zinc-900 dark:text-zinc-200"
+                >
+                  Browse all tools
+                </Link>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2 text-xs font-medium text-muted">
+                {['WebP', 'AVIF', 'JPG', 'PNG', 'Batch workflow', 'No login needed'].map((tag) => (
+                  <span key={tag} className="rounded-full border border-border bg-white/60 px-2.5 py-1.5 dark:bg-zinc-900/80">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-border bg-white/80 p-4 shadow-[0_20px_40px_-25px_rgba(15,23,42,0.45)] backdrop-blur-sm dark:bg-zinc-900/80 sm:p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted">Why people use it</span>
+                <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  100% private
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  { title: 'Resize exact pixels', text: 'Set custom width, height, scale, and aspect ratio in one click.' },
+                  { title: 'Export in modern formats', text: 'Deliver lightweight WebP and AVIF files ideal for faster pages.' },
+                  { title: 'Batch process fast', text: 'Optimize up to 50 images and download them as a single ZIP.' },
+                ].map((item) => (
+                  <div key={item.title} className="rounded-2xl border border-border bg-slate-50/80 p-3.5 dark:bg-zinc-950/60">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </span>
+                      <p className="font-semibold text-primary dark:text-white">{item.title}</p>
+                    </div>
+                    <p className="text-sm leading-relaxed text-muted">{item.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       )}
@@ -1425,36 +1497,44 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                     >
                       {files[selectedIndex] ? (
                         <div className="relative max-w-full max-h-full flex items-center justify-center">
-                          {/* Original Base Image */}
-                          <div style={livePreviewFilterStyle}>
-                            <FileImage
-                              file={files[selectedIndex]}
-                              className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
-                            />
-                          </div>
+                          {/* Original stays unfiltered so split compare is honest. */}
+                          <FileImage
+                            file={files[selectedIndex]}
+                            className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
+                          />
 
-                          {/* Clipped Optimized Result Overlay */}
-                          {results[selectedIndex] && compareMode === 'split' && (
+                          {/* Optimized overlay: processed output, or a live filter preview of the source. */}
+                          {compareMode === 'split' && (
                             <div
                               className="absolute inset-0 overflow-hidden flex items-center justify-center"
                               style={{ clipPath: `inset(0 0 0 ${splitPos}%)` }}
                             >
-                              <img
-                                src={results[selectedIndex].dataBase64}
-                                alt="Optimized Image"
-                                className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
-                              />
+                              <div style={livePreviewFilterStyle}>
+                                {results[selectedIndex] ? (
+                                  <img
+                                    src={results[selectedIndex].dataBase64}
+                                    alt="Optimized Image"
+                                    className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
+                                  />
+                                ) : (
+                                  <FileImage
+                                    file={files[selectedIndex]}
+                                    className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
+                                  />
+                                )}
+                              </div>
                             </div>
                           )}
 
-                          {/* Result Only View */}
                           {results[selectedIndex] && compareMode === 'result' && (
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <img
-                                src={results[selectedIndex].dataBase64}
-                                alt="Optimized Image"
-                                className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
-                              />
+                              <div style={livePreviewFilterStyle}>
+                                <img
+                                  src={results[selectedIndex].dataBase64}
+                                  alt="Optimized Image"
+                                  className="max-w-full max-h-[320px] sm:max-h-[380px] object-contain pointer-events-none rounded-lg shadow-lg"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1464,7 +1544,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                     </div>
 
                     {/* Split Divider Handle */}
-                    {results[selectedIndex] && compareMode === 'split' && (
+                    {files[selectedIndex] && compareMode === 'split' && (
                       <div
                         onMouseDown={() => setIsDraggingSplit(true)}
                         className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize shadow-2xl z-20"
@@ -1881,6 +1961,22 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                             />
                           </div>
                         </div>
+                        {isUpscaling && originalDims && (
+                          <div className="mt-2 p-2.5 rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 space-y-2">
+                            <p className="text-[11px] leading-snug">
+                              Upscaling {originalDims.w}×{originalDims.h} to {width}×{height}. Extra pixels are invented, so small rasters and SVGs usually look blurry.
+                            </p>
+                            <label className="flex items-start gap-2 text-[11px] font-semibold cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={allowUpscale}
+                                onChange={(e) => setAllowUpscale(e.target.checked)}
+                                className="mt-0.5 accent-amber-600"
+                              />
+                              <span>Allow upscaling anyway</span>
+                            </label>
+                          </div>
+                        )}
                       </div>
 
                       {/* Scale Slider */}

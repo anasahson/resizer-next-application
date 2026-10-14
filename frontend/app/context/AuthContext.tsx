@@ -38,13 +38,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
-  || 'http://localhost:5000';
+  || '';
 
 export const AUTH_TOKEN_KEYS = {
   primary: 'resizora_auth_token',
   user: 'resizer_user_auth_token',
   superadmin: 'resizer_superadmin_auth_token',
 } as const;
+
+function syncAuthSessionCookie(token: string | null) {
+  if (typeof document === 'undefined') return;
+
+  if (!token) {
+    document.cookie = 'resizora_session=; Path=/; Max-Age=0; SameSite=Lax';
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const maxAge = Math.floor(payload.exp - Date.now() / 1000);
+    if (!Number.isFinite(maxAge) || maxAge <= 0) {
+      syncAuthSessionCookie(null);
+      return;
+    }
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `resizora_session=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+  } catch {
+    syncAuthSessionCookie(null);
+  }
+}
 
 export function getUserFromToken(storedToken: string): User | null {
   try {
@@ -104,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const active = getActiveAuthToken();
 
       if (!active) {
+        syncAuthSessionCookie(null);
         setToken(null);
         setUser(null);
         setIsLoading(false);
@@ -113,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 1. Immediately hydrate user from valid JWT payload (zero flicker / no false logout)
       const cachedUser = getUserFromToken(active.token);
       if (!cachedUser) {
+        syncAuthSessionCookie(null);
         localStorage.removeItem(active.key);
         localStorage.removeItem('resizora_auth_token');
         setToken(null);
@@ -123,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setToken(active.token);
       setUser(cachedUser);
+      syncAuthSessionCookie(active.token);
       // Tie this PostHog visitor to the real account so per-page visitor
       // counts can distinguish signed-in people from anonymous devices.
       identifyUser(cachedUser);
@@ -145,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Token is strictly rejected as expired or invalid by server
           localStorage.removeItem('resizora_auth_token');
           localStorage.removeItem(active.key);
+          syncAuthSessionCookie(null);
           setToken(null);
           setUser(null);
         }
@@ -183,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(data.user);
       setToken(data.token);
+      syncAuthSessionCookie(data.token);
 
       // Store in primary unified token key
       localStorage.setItem('resizora_auth_token', data.token);
@@ -220,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(data.user);
       setToken(data.token);
+      syncAuthSessionCookie(data.token);
       localStorage.setItem(AUTH_TOKEN_KEYS.user, data.token);
       identifyUser(data.user);
 
@@ -265,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout handler
   const logout = (redirectTo?: string | React.MouseEvent) => {
+    syncAuthSessionCookie(null);
     localStorage.removeItem('resizora_auth_token');
     localStorage.removeItem(AUTH_TOKEN_KEYS.superadmin);
     localStorage.removeItem(AUTH_TOKEN_KEYS.user);

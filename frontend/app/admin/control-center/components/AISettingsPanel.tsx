@@ -15,7 +15,7 @@ import {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
-  || 'http://localhost:5000';
+  || '';
 
 const getAuthToken = () =>
   (typeof window !== 'undefined' ? localStorage.getItem('resizer_superadmin_auth_token') || '' : '');
