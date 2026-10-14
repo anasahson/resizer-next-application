@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Features & Architecture — High-Speed libvips & In-Browser Processing',
   description:
-    "Explore Resizora's performance architecture: 100% private client-side processing, sub-millisecond libvips Sharp engine, WebP and AVIF quantization, and batch workflows.",
+    "Explore Resizer AI's performance architecture: 100% private client-side processing, sub-millisecond libvips Sharp engine, WebP and AVIF quantization, and batch workflows.",
   keywords: [
     'image resizing features',
     'sharp engine',
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     canonical: '/features',
   },
   openGraph: {
-    title: 'Features & Architecture — Resizora Image Processing',
+    title: 'Features & Architecture — Resizer AI Image Processing',
     description:
       'Explore our high-speed image processing features: in-browser security, sub-millisecond engine, and next-gen format conversion.',
     url: '/features',

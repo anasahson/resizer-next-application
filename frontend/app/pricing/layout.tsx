@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     canonical: '/pricing',
   },
   openGraph: {
-    title: 'Pricing & Plans — Resizora Image Optimizer',
+    title: 'Pricing & Plans — Resizer AI Image Optimizer',
     description:
       'Free in-browser image resizing forever. Upgrade to Pro for high-speed batch and cloud Sharp workflows.',
     url: '/pricing',

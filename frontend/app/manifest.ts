@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Resizora — Free Online Image Resizer & Compressor',
-    short_name: 'Resizora',
+    name: 'Resizer AI — Free Online Image Resizer & Compressor',
+    short_name: 'Resizer AI',
     description: 'Resize, compress, convert, and crop images online for free in your browser.',
     start_url: '/',
     display: 'standalone',

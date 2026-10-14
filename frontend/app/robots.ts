@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next';
 
 // No trailing slash: a trailing slash here produced `Sitemap: https://host//sitemap.xml`
 // in robots.txt, and the Host directive must be a bare hostname (no scheme, no slash).
-const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com').replace(/\/+$/, '');
 
 export default function robots(): MetadataRoute.Robots {
   return {

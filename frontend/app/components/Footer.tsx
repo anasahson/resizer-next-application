@@ -36,7 +36,7 @@ export default function Footer() {
       ? { label: 'Image Tools Suite', message: 'Batch convert, resize, and compress without page reloads.' }
     : pathname === '/login' || pathname === '/register'
       ? { label: 'Authentication', message: 'Secure access to your account and quota manager.' }
-    : { label: 'Resizora Studio', message: 'Fast, private, zero-latency image resizing for everyone.' };
+    : { label: 'Resizer AI Studio', message: 'Fast, private, zero-latency image resizing for everyone.' };
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +52,7 @@ export default function Footer() {
       aria-labelledby="footer-heading"
       className="bg-surface-elevated/95 dark:bg-zinc-950/95 border-t border-border/70 text-primary dark:text-zinc-200 transition-colors duration-300 relative overflow-hidden backdrop-blur-md"
     >
-      <h2 id="footer-heading" className="sr-only">Resizora Application Footer</h2>
+      <h2 id="footer-heading" className="sr-only">Resizer AI Application Footer</h2>
 
       {/* Ambient background glows */}
       <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-blue-600/5 dark:bg-blue-600/10 rounded-full blur-3xl pointer-events-none -z-10" />
@@ -70,7 +70,7 @@ export default function Footer() {
                 R
               </div>
               <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-indigo-600 dark:from-white dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                Resizora
+                Resizer AI
               </span>
             </Link>
 
@@ -312,7 +312,7 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="mailto:support@resizora.com"
+                  href="mailto:support@resizer-ai.com"
                   className="hover:text-blue-600 dark:hover:text-white transition-colors inline-flex items-center gap-1"
                 >
                   <span>Contact Support</span>
@@ -328,7 +328,7 @@ export default function Footer() {
         {/* ========================================================================= */}
         <div className="pt-8 border-t border-border/70 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted dark:text-zinc-500">
           <p className="flex items-center gap-1.5 text-center sm:text-left">
-            <span>© {new Date().getFullYear()} Resizora. Crafted with</span>
+            <span>© {new Date().getFullYear()} Resizer AI. Crafted with</span>
             <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 inline" />
             <span>for lightning-fast, privacy-first web performance.</span>
           </p>

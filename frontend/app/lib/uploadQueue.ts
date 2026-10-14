@@ -273,7 +273,7 @@ class UploadQueue {
         const blob = job.blob ?? (await (await fetch(job.dataUrl)).blob());
         const form = new FormData();
         form.append('image', blob, job.filename);
-        form.append('caption', `Optimised with Resizora — ${job.filename}`);
+        form.append('caption', `Optimised with Resizer AI — ${job.filename}`);
         // Lets the backend log whether this came from a URL import or a file.
         form.append('source', job.source || 'system-file');
 

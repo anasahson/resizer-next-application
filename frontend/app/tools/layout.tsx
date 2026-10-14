@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com').replace(/\/+$/, '');
 
 /**
  * Structured data for the /tools hub.
@@ -19,7 +19,7 @@ const toolsSchema = {
     {
       '@type': 'WebApplication',
       '@id': `${SITE_URL}/tools#webapp`,
-      name: 'Resizora Image Tools',
+      name: 'Resizer AI Image Tools',
       url: `${SITE_URL}/tools`,
       applicationCategory: 'MultimediaApplication',
       operatingSystem: 'Any (web browser)',
@@ -38,7 +38,7 @@ const toolsSchema = {
     {
       '@type': 'ItemList',
       '@id': `${SITE_URL}/tools#tools`,
-      name: 'Resizora image tools',
+      name: 'Resizer AI image tools',
       itemListOrder: 'https://schema.org/ItemListOrderAscending',
       numberOfItems: 4,
       itemListElement: [

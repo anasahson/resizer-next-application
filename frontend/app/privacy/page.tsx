@@ -1,319 +1,224 @@
-'use client';
+import Link from 'next/link';
 
-import React from 'react';
+const SITE_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com';
+
+const highlights = [
+  {
+    title: 'Zero image uploads',
+    text: 'Most image editing happens locally in your browser. We do not require you to upload your photos to a remote server before editing.',
+  },
+  {
+    title: 'No personal image storage',
+    text: 'We do not keep your original files, processed files, or image metadata in a central database unless you explicitly choose a cloud export flow.',
+  },
+  {
+    title: 'Consent-first analytics',
+    text: 'Analytics only starts after you choose to accept. If you decline, no tracking scripts initialize and no consent cookie is set.',
+  },
+  {
+    title: 'GDPR-aware controls',
+    text: 'We designed the consent flow for transparency, user control, and easy withdrawal of analytics preferences.',
+  },
+];
+
+const faqItems = [
+  {
+    question: 'Do you upload my images to your servers?',
+    answer:
+      'No. Resizer AI is built for local processing. Your images stay in the browser unless you explicitly use a feature that sends them to an external provider you choose.',
+  },
+  {
+    question: 'Do you store my photos or metadata?',
+    answer:
+      'We do not keep image files as part of the default editing experience. We do not retain original image bytes, EXIF data, or hidden metadata as part of standard processing logs.',
+  },
+  {
+    question: 'What analytics do you collect?',
+    answer:
+      'Only anonymous product analytics, and only after consent. We do not record your image content, files, or screen activity. Session replay is disabled by default.',
+  },
+  {
+    question: 'Can I withdraw consent later?',
+    answer:
+      'Yes. Clearing the consent flag in your browser will remove the stored preference and the analytics banner will appear again the next time you visit.',
+  },
+];
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-zinc-950 dark:to-zinc-900">
-      {/* Hero */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-16 px-8">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl font-bold mb-4">🔒 Your Privacy Matters</h1>
-          <p className="text-xl text-blue-100">
-            Your images never leave your browser. 100% client-side processing. Zero server storage.
-          </p>
-        </div>
-      </div>
+    <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-zinc-950 dark:text-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'PrivacyPolicy',
+            name: 'Resizer AI Privacy Policy',
+            url: `${SITE_URL}/privacy`,
+            description:
+              'Resizer AI privacy policy covering local image processing, zero-upload by default, analytics consent, and data protection practices.',
+            inLanguage: 'en-US',
+            publisher: {
+              '@type': 'Organization',
+              name: 'Resizer AI',
+              url: SITE_URL,
+            },
+            mainEntity: {
+              '@type': 'WebPage',
+              name: 'Privacy Policy',
+              url: `${SITE_URL}/privacy`,
+            },
+          }),
+        }}
+      />
 
-      <div className="max-w-4xl mx-auto px-8 py-16">
-        {/* Core Values */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-8">Our Privacy Promise</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              {
-                title: '🖼️ Zero Image Upload',
-                desc: 'Images process entirely in your browser. Nothing reaches our servers.',
-              },
-              {
-                title: '🔐 No Image Data Collection',
-                desc: 'We don\'t collect, store, or sell your image data. Ever.',
-              },
-              {
-                title: '📊 Analytics Only With Consent',
-                desc: 'We use PostHog for anonymous usage statistics, and only after you click Accept. Decline and nothing is collected. Session recording is always off.',
-              },
-              {
-                title: '⚖️ GDPR Compliant',
-                desc: 'Consent-first analytics, no cookies set before you choose, and one click to withdraw it.',
-              },
-              {
-                title: '✅ No Signup Required',
-                desc: 'Use Resizer without creating an account.',
-              },
-              {
-                title: '🌐 Works Offline',
-                desc: 'Process images without internet connection.',
-              },
-            ].map((item, i) => (
-              <div key={i} className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold mb-2">{item.title}</h3>
-                <p className="text-gray-700 dark:text-zinc-300">{item.desc}</p>
+      <section className="border-b border-slate-200 bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-600 text-white dark:border-zinc-800">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="max-w-3xl">
+            <span className="inline-flex items-center rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-50">
+              Privacy-first design
+            </span>
+            <h1 className="mt-5 text-4xl font-black tracking-[-0.06em] sm:text-5xl lg:text-6xl">
+              Privacy policy for a zero-upload image tool.
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-blue-50 sm:text-lg">
+              Resizer AI is built to put you in control. Your files stay local by default, your image data is not treated as a product, and analytics only run after explicit consent.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {highlights.map((item) => (
+            <article
+              key={item.title}
+              className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+            >
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <span className="text-lg font-bold">✓</span>
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{item.title}</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-zinc-300">{item.text}</p>
+            </article>
+          ))}
+        </section>
+
+        <section className="mt-16 grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-8">
+            <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">Our promise</p>
+              <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-900 dark:text-white">
+                We do not treat your images as a database asset.
+              </h2>
+              <div className="mt-5 space-y-5 text-base leading-8 text-slate-600 dark:text-zinc-300">
+                <p>
+                  Resizer AI is designed around local-first image processing. In the default flow, your originals are processed directly in the browser and are not uploaded to a server for transformation, storage, indexing, or analysis.
+                </p>
+                <p>
+                  That means your photos, screenshots, product images, and social graphics are not kept in a cloud upload queue as part of the normal editing process. We focus on speed, privacy, and quality without turning your content into a data pipeline.
+                </p>
+              </div>
+            </article>
+
+            <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">How it works</p>
+              <h2 className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">Local processing by default</h2>
+              <ul className="mt-5 space-y-4 text-sm leading-7 text-slate-600 dark:text-zinc-300">
+                <li><strong className="text-slate-900 dark:text-white">Browser-native editing:</strong> image resizing, compression, format conversion, and previews happen locally on your device.</li>
+                <li><strong className="text-slate-900 dark:text-white">No hidden upload step:</strong> the app does not silently send your files to a background service during normal editing.</li>
+                <li><strong className="text-slate-900 dark:text-white">No image indexing:</strong> your original files are not cataloged or stored for later reuse unless you choose an explicit export flow.</li>
+                <li><strong className="text-slate-900 dark:text-white">Metadata-aware workflows:</strong> we support local cleanup of EXIF and other metadata when needed for privacy and sharing safety.</li>
+              </ul>
+            </article>
+          </div>
+
+          <aside className="rounded-3xl border border-slate-200 bg-slate-900 p-6 text-white shadow-sm dark:border-zinc-800 sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">What we do not do</p>
+            <ul className="mt-5 space-y-4 text-sm leading-7 text-slate-200">
+              <li>• We do not sell your images, metadata, or browsing behavior.</li>
+              <li>• We do not build ad profiles from the files you process.</li>
+              <li>• We do not require an account to use the core resizing tools.</li>
+              <li>• We do not turn your files into a telemetry product.</li>
+            </ul>
+
+            <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">Need help?</p>
+              <p className="mt-3 text-sm leading-6 text-slate-200">
+                Questions about privacy, consent, or data handling can be sent to{' '}
+                <a href="mailto:support@resizer-ai.com" className="font-semibold text-white underline underline-offset-4">
+                  support@resizer-ai.com
+                </a>
+                .
+              </p>
+            </div>
+          </aside>
+        </section>
+
+        <section className="mt-16 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">Analytics & consent</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-900 dark:text-white">We only track if you explicitly agree.</h2>
+
+          <div className="mt-6 grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 p-5 dark:bg-zinc-950">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">What is collected</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-zinc-300">
+                If analytics are accepted, we may collect anonymous usage data such as page views, feature usage, and high-level interaction patterns. We do not collect file contents, user photos, or image payloads.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-5 dark:bg-zinc-950">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">What we deliberately do not collect</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-zinc-300">
+                We do not record screen activity, image pixels, exact file names, uploaded image data, or any user document content as part of analytics. Session replays are disabled.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <p className="text-sm leading-7 text-slate-600 dark:text-zinc-300">
+              Consent is stored locally in your browser. The banner appears again after you clear your browser storage, so you always retain control. If you decline analytics, no tracking scripts are initialized and no cookies are set by default.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-16">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">FAQ</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-900 dark:text-white">Frequently asked privacy questions</h2>
+          <div className="mt-8 space-y-4">
+            {faqItems.map((item) => (
+              <div key={item.question} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{item.question}</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-zinc-300">{item.answer}</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Technical Details */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-8">How We Keep You Private</h2>
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-8">
-              <h3 className="text-xl font-bold mb-3">Client-Side Processing</h3>
-              <p className="text-gray-700 dark:text-zinc-300 mb-4">
-                All image processing happens in your browser using WebAssembly (WASM) and JavaScript.
-                Your files never transmit to any server.
-              </p>
-              <ul className="list-disc list-inside text-gray-700 dark:text-zinc-300 space-y-2">
-                <li>Sharp.js for compression</li>
-                <li>libvips compiled to WASM</li>
-                <li>Local file access only</li>
-                <li>No network requests</li>
-              </ul>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-8">
-              <h3 className="text-xl font-bold mb-3">No Logs, No Storage</h3>
-              <p className="text-gray-700 dark:text-zinc-300 mb-4">
-                We literally don't store anything. No image files, no metadata, no processing logs.
-              </p>
-              <ul className="list-disc list-inside text-gray-700 dark:text-zinc-300 space-y-2">
-                <li>Zero server-side file storage</li>
-                <li>No database records of your files</li>
-                <li>No backup/archive of images</li>
-                <li>Audit-proof architecture</li>
-              </ul>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-8">
-              <h3 className="text-xl font-bold mb-3">Metadata Removal</h3>
-              <p className="text-gray-700 dark:text-zinc-300 mb-4">
-                Optional feature to strip EXIF data, GPS coordinates, and other identifying metadata.
-              </p>
-              <ul className="list-disc list-inside text-gray-700 dark:text-zinc-300 space-y-2">
-                <li>Remove EXIF data (camera model, timestamp)</li>
-                <li>Strip GPS coordinates</li>
-                <li>Remove device fingerprints</li>
-                <li>Clean XMP metadata</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {/* Comparison */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-8">Resizer vs. The Competition</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full bg-white dark:bg-zinc-900 rounded-lg shadow overflow-hidden">
-              <thead className="bg-blue-600 text-white">
-                <tr>
-                  <th className="px-6 py-3 text-left">Feature</th>
-                  <th className="px-6 py-3 text-center">Resizer</th>
-                  <th className="px-6 py-3 text-center">TinyPNG</th>
-                  <th className="px-6 py-3 text-center">Photoshop</th>
-                  <th className="px-6 py-3 text-center">Canva</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {[
-                  { feature: 'Client-Side Processing', resizer: '✅', tinypng: '❌', photoshop: '✅', canva: '❌' },
-                  { feature: 'No Server Upload', resizer: '✅', tinypng: '❌', photoshop: '✅', canva: '❌' },
-                  { feature: 'No Tracking', resizer: '✅', tinypng: '❌', photoshop: '❌', canva: '❌' },
-                  { feature: 'No Signup Required', resizer: '✅', tinypng: '❌', photoshop: '❌', canva: '❌' },
-                  { feature: 'Works Offline', resizer: '✅', tinypng: '❌', photoshop: '✅', canva: '❌' },
-                  { feature: 'GDPR Compliant', resizer: '✅', tinypng: '⚠️', photoshop: '⚠️', canva: '⚠️' },
-                  { feature: 'Free Tier', resizer: '✅', tinypng: '✅', photoshop: '❌', canva: '⚠️' },
-                  { feature: 'Batch Processing', resizer: '✅', tinypng: '✅', photoshop: '✅', canva: '⚠️' },
-                ].map((row, i) => (
-                  <tr key={i} className={i % 2 === 0 ? 'bg-gray-50 dark:bg-zinc-800' : ''}>
-                    <td className="px-6 py-3 font-bold">{row.feature}</td>
-                    <td className="px-6 py-3 text-center text-lg">{row.resizer}</td>
-                    <td className="px-6 py-3 text-center text-lg">{row.tinypng}</td>
-                    <td className="px-6 py-3 text-center text-lg">{row.photoshop}</td>
-                    <td className="px-6 py-3 text-center text-lg">{row.canva}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Use Cases */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-8">Who Should Use Resizer?</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              {
-                title: '🏥 Healthcare Professionals',
-                desc: 'HIPAA-compliant image compression with zero server logs.',
-              },
-              {
-                title: '⚖️ Lawyers',
-                desc: 'Prepare court documents without exposing metadata.',
-              },
-              {
-                title: '📸 Photographers',
-                desc: 'Remove GPS data from field photos before publishing.',
-              },
-              {
-                title: '🏠 Real Estate Agents',
-                desc: 'Strip location data from property photos.',
-              },
-              {
-                title: '💼 Corporate Teams',
-                desc: 'Process sensitive documents locally. Zero compliance debt.',
-              },
-              {
-                title: '🎨 Content Creators',
-                desc: 'Batch process social media content privately.',
-              },
-              {
-                title: '🔒 Privacy Advocates',
-                desc: 'Support tools that respect your data.',
-              },
-              {
-                title: '🌍 Anyone Anywhere',
-                desc: 'Process images without internet. Works offline.',
-              },
-            ].map((item, i) => (
-              <div key={i} className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold mb-2">{item.title}</h3>
-                <p className="text-gray-700 dark:text-zinc-300">{item.desc}</p>
-              </div>
+        <section className="mt-16 rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-100 to-blue-50 p-6 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-blue-950/40 sm:p-8">
+          <h2 className="text-2xl font-bold tracking-[-0.04em] text-slate-900 dark:text-white">Your privacy controls, included by design.</h2>
+          <div className="mt-5 flex flex-wrap gap-3">
+            {['No mandatory upload', 'No hidden tracking', 'Explicit consent', 'Local processing', 'Easy withdrawal'].map((tag) => (
+              <span key={tag} className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200">
+                {tag}
+              </span>
             ))}
           </div>
-        </section>
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-8">Analytics &amp; Cookies</h2>
-          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-8 space-y-6">
-            <div>
-              <h3 className="text-lg font-bold mb-2">What we collect (only if you accept)</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                We use <b>PostHog</b> to understand which pages and features people actually use,
-                so we know what to improve. If you accept, we collect aggregate events such as
-                page views, which sections of a page were scrolled into view, and which controls
-                were used. JavaScript errors are also reported so we can fix crashes.
-              </p>
-              <ul className="list-disc list-inside mt-3 space-y-1 text-gray-700 dark:text-zinc-300">
-                <li>
-                  <b>Session recording is always disabled.</b> We never record your screen, clicks
-                  or DOM interactions.
-                </li>
-                <li>
-                  <b>Your images are never part of this.</b> Filenames, dimensions of your files,
-                  file inputs and any text you type are never sent.
-                </li>
-                <li>
-                  Passwords, emails and other personal fields are excluded by design. Only
-                  bucketed values are sent for safe controls (for example a slider range, not your
-                  exact input).
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold mb-2">When it starts</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                Nothing is loaded and no cookie is set until you press{' '}
-                <b>Accept analytics</b> on the banner. Until then PostHog is never initialised —
-                its script is not even requested. If you press <b>Decline</b> (or dismiss the
-                banner), no analytics run at all and every feature still works.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold mb-2">Cookies &amp; storage</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                PostHog is configured not to use cookies; its device identifier is kept in your
-                browser&apos;s <code>localStorage</code>. Your own consent choice is stored in{' '}
-                <code>localStorage</code> under <code>resizer_analytics_consent</code> so we only
-                ask once. Clearing your browser storage removes both and the banner will ask again.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold mb-2">Change or withdraw your choice</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                You can withdraw consent at any time by clearing your browser storage for this
-                site, which brings the banner back — or by running this in your browser console:
-              </p>
-              <pre className="mt-3 p-3 rounded-lg bg-slate-100 dark:bg-zinc-950 text-xs overflow-x-auto text-gray-800 dark:text-zinc-200">
-                localStorage.removeItem(&apos;resizer_analytics_consent&apos;)
-              </pre>
-              <p className="mt-3 text-gray-700 dark:text-zinc-300">
-                Withdrawing stops capture immediately and drops any stored analytics identity.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold mb-2">Data processor</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                PostHog, Inc. acts as our data processor for these anonymous analytics events.
-                We do not sell analytics data to anyone.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Legal */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-8">Legal & Compliance</h2>
-          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-8 space-y-6">
-            <div>
-              <h3 className="text-lg font-bold mb-2">GDPR Compliance</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                Resizer is GDPR-compliant by design. We don't collect personal data, so GDPR requirements
-                don't apply to us. Your images are yours alone.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold mb-2">CCPA (California Privacy Rights)</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                We don't collect or sell personal data. CCPA rights are not applicable because there's
-                nothing to regulate.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold mb-2">HIPAA (Healthcare)</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                Healthcare professionals can use Resizer for patient image processing without HIPAA
-                complications. No server storage = no breach risk.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold mb-2">Privacy Policy</h3>
-              <p className="text-gray-700 dark:text-zinc-300">
-                Your <b>images</b> never leave your device, so there is no image data to disclose.
-                The one exception to our no-third-party rule is anonymous product analytics
-                (PostHog), which is fully described in the &ldquo;Analytics &amp; Cookies&rdquo;
-                section below and only runs if you accept it.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* CTA */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-lg p-12 text-center">
-          <h2 className="text-2xl font-bold mb-4">Privacy Starts Here</h2>
-          <p className="mb-6 text-blue-100">
-            Stop uploading your images to random servers. Start processing them locally.
-          </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <a
-              href="/processor"
-              className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-3 rounded-lg font-bold transition"
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
             >
-              Start Compressing Now
-            </a>
+              Back to the resizer
+            </Link>
             <a
-              href="/blog"
-              className="border-2 border-white text-white hover:bg-blue-700 px-8 py-3 rounded-lg font-bold transition"
+              href="mailto:support@resizer-ai.com"
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-blue-400 hover:text-blue-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
             >
-              Learn More on Blog
+              Contact privacy support
             </a>
           </div>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

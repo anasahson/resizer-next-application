@@ -139,7 +139,7 @@ export default function LoginPage() {
 
             <div className="-mt-2 text-right">
               <a
-                href="mailto:support@resizora.com?subject=Password%20reset%20request"
+                href="mailto:support@resizer-ai.com?subject=Password%20reset%20request"
                 className="text-xs font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-4"
               >
                 Forgot password?

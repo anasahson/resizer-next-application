@@ -41,7 +41,7 @@ export default function ConsentBanner() {
           <ShieldCheck className="w-5 h-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-bold text-primary dark:text-white">
-              Help us improve Resizora
+              Help us improve Resizer AI
             </h2>
             <p className="mt-1.5 text-xs leading-relaxed text-muted">
               We use PostHog for anonymous, aggregate usage analytics — which pages and

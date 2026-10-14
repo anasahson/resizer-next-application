@@ -46,7 +46,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
 
 // Canonical public origin — used for structured data so schema.org URLs match
 // the real domain (they previously claimed resizer.io, a different site).
-const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com').replace(/\/+$/, '');
 
 // Fallback dimensions used before any image has been probed (and after a reset).
 const INITIAL_ORIGINAL_WIDTH = 1920;
@@ -1009,7 +1009,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
               {
                 '@type': 'WebApplication',
                 '@id': `${SITE_URL}/#app`,
-                name: 'Resizora Image Studio',
+                name: 'Resizer AI Image Studio',
                 url: `${SITE_URL}/`,
                 description:
                   'Free online image resizer, compressor and converter. Resize, compress and convert images to WebP, AVIF, JPG, PNG — no upload required, 100% private.',
@@ -1036,7 +1036,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
               {
                 '@type': 'Organization',
                 '@id': `${SITE_URL}/#org`,
-                name: 'Resizora',
+                name: 'Resizer AI',
                 url: `${SITE_URL}/`,
                 logo: { '@type': 'ImageObject', url: `${SITE_URL}/og-image.png`, width: 1200, height: 630 },
               },
@@ -1044,7 +1044,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                 '@type': 'WebSite',
                 '@id': `${SITE_URL}/#website`,
                 url: `${SITE_URL}/`,
-                name: 'Resizora',
+                name: 'Resizer AI',
                 publisher: { '@id': `${SITE_URL}/#org` },
                 inLanguage: 'en-US',
                 potentialAction: {
@@ -2510,14 +2510,14 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
             </div>
           </div>
 
-          {/* 3. WHY CHOOSE RESIZORA (CORE VALUE PILLARS) */}
+          {/* 3. WHY CHOOSE RESIZER AI (CORE VALUE PILLARS) */}
           <div className="space-y-6">
             <div className="max-w-2xl mx-auto text-center space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">
                 Performance & Privacy
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-primary dark:text-white tracking-tight">
-                Why Choose Resizora Online Image Resizer?
+                Why Choose Resizer AI Online Image Resizer?
               </h2>
               <p className="text-xs sm:text-sm text-muted">
                 Engineered for professional designers, photographers, marketers, and developers who need fast, lossless image resizing without privacy risks.
@@ -2586,11 +2586,11 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
               {[
                 {
                   q: 'How do I resize an image online for free?',
-                  a: 'Simply drag and drop your photo into the Resizora studio above. Enter your desired width and height in pixels (or scale by percentage), choose your preferred format like WebP or JPG, and click "Download" to save your resized image instantly.',
+                  a: 'Simply drag and drop your photo into the Resizer AI studio above. Enter your desired width and height in pixels (or scale by percentage), choose your preferred format like WebP or JPG, and click "Download" to save your resized image instantly.',
                 },
                 {
                   q: 'Will resizing an image reduce its sharpness or visual quality?',
-                  a: 'Not with Resizora! We employ advanced multi-pass bicubic and Lanczos resampling filters. Downscaling retains high sharpness and contrast, while upscaling uses sub-pixel interpolation to minimize blurriness.',
+                  a: 'Not with Resizer AI! We employ advanced multi-pass bicubic and Lanczos resampling filters. Downscaling retains high sharpness and contrast, while upscaling uses sub-pixel interpolation to minimize blurriness.',
                 },
                 {
                   q: 'How can I reduce an image file size to under 100KB or 200KB?',
@@ -2598,11 +2598,11 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                 },
                 {
                   q: 'Can I resize multiple images at once (batch resize)?',
-                  a: 'Yes! Resizora supports bulk batch resizing for up to 50 images simultaneously. You can apply uniform pixel dimensions or scale factors across all photos and download them packaged in a single ZIP file.',
+                  a: 'Yes! Resizer AI supports bulk batch resizing for up to 50 images simultaneously. You can apply uniform pixel dimensions or scale factors across all photos and download them packaged in a single ZIP file.',
                 },
                 {
                   q: 'Are my uploaded photos safe, private, and confidential?',
-                  a: 'Yes, 100%. Resizora runs entirely client-side inside your web browser using HTML5 Canvas and WebAssembly. Your images never leave your computer and are never uploaded, analyzed, or stored on remote cloud servers.',
+                  a: 'Yes, 100%. Resizer AI runs entirely client-side inside your web browser using HTML5 Canvas and WebAssembly. Your images never leave your computer and are never uploaded, analyzed, or stored on remote cloud servers.',
                 },
                 {
                   q: 'What is the difference between WebP, AVIF, and JPG formats?',
@@ -2610,7 +2610,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                 },
                 {
                   q: 'How do I resize an image to exact pixel dimensions (width × height)?',
-                  a: 'In the Resizora studio, select the "Pixels" mode. Enter your exact target width and height in the input boxes. To keep the original proportions without distortion, ensure the "Lock Aspect Ratio" toggle is active.',
+                  a: 'In the Resizer AI studio, select the "Pixels" mode. Enter your exact target width and height in the input boxes. To keep the original proportions without distortion, ensure the "Lock Aspect Ratio" toggle is active.',
                 },
               ].map((faq, idx) => {
                 const isOpen = openFaq === idx;

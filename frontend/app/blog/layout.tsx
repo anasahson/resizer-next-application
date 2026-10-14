@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { CURRENT_ACTIVE_BLOG_SLUGS } from '../sitemap';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizora.com').replace(/\/+$/, '');
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com').replace(/\/+$/, '');
 
 /**
  * Structured data for the /blog index.
@@ -29,13 +29,13 @@ const blogSchema = {
       '@type': 'WebSite',
       '@id': `${SITE_URL}/blog#website`,
       url: SITE_URL,
-      name: 'Resizora',
+      name: 'Resizer AI',
       publisher: { '@id': `${SITE_URL}/blog#organization` },
     },
     {
       '@type': 'Organization',
       '@id': `${SITE_URL}/blog#organization`,
-      name: 'Resizora',
+      name: 'Resizer AI',
       url: SITE_URL,
       // No `logo` here on purpose: /og-image.png is not in public/, so pointing
       // at it would advertise a 404 to crawlers. Omitted rather than wrong.
@@ -44,7 +44,7 @@ const blogSchema = {
       '@type': 'Blog',
       '@id': `${SITE_URL}/blog#blog`,
       url: `${SITE_URL}/blog`,
-      name: 'Resizora Engineering Blog',
+      name: 'Resizer AI Engineering Blog',
       description:
         'Technical articles on image compression, codec selection, performance budgets and responsive image delivery.',
       publisher: { '@id': `${SITE_URL}/blog#organization` },
@@ -81,7 +81,7 @@ const blogSchema = {
 };
 
 export const metadata: Metadata = {
-  title: 'Engineering Blog & Image Optimization Guides — Resizora',
+  title: 'Engineering Blog & Image Optimization Guides — Resizer AI',
   description:
     'In-depth guides on image compression codecs, WebP vs AVIF benchmarks, Core Web Vitals LCP optimization, and Node.js Sharp processing pipelines.',
   keywords: [
@@ -96,16 +96,16 @@ export const metadata: Metadata = {
     canonical: '/blog',
   },
   openGraph: {
-    title: 'Engineering Blog & Image Optimization Guides — Resizora',
+    title: 'Engineering Blog & Image Optimization Guides — Resizer AI',
     description:
-      'Learn modern image compression, codec comparisons, and responsive picture techniques from Resizora engineers.',
+      'Learn modern image compression, codec comparisons, and responsive picture techniques from Resizer AI engineers.',
     url: '/blog',
-    siteName: 'Resizora',
+    siteName: 'Resizer AI',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Engineering Blog & Image Optimization Guides — Resizora',
+    title: 'Engineering Blog & Image Optimization Guides — Resizer AI',
     description: 'Modern image compression, codec comparisons and responsive picture techniques.',
   },
 };

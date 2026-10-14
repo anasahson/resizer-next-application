@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-export const alt = 'Resizora — Free Online Image Resizer & Compressor';
+export const alt = 'Resizer AI — Free Online Image Resizer & Compressor';
 export const size = {
   width: 1200,
   height: 630,
@@ -63,7 +63,7 @@ export default async function Image() {
               color: 'transparent',
             }}
           >
-            Resizora
+            Resizer AI
           </span>
         </div>
 

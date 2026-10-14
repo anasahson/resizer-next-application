@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || "https://resizora.com").replace(/\/+$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || "https://resizer-ai.com").replace(/\/+$/, "");
 
 export const viewport: Viewport = {
   themeColor: [
@@ -32,8 +32,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Image Resizer — Free Online Image Resize, Compressor & Converter | Resizora",
-    template: "%s | Resizora Image Resizer",
+    default: "Image Resizer — AI Resize, Compress, and Convert | Resizer AI",
+    template: "%s | Resizer AI Image Resizer",
   },
   description:
     "Free online image resizer to resize images by pixels or percentage, compress file size without losing quality, and convert between WebP, AVIF, PNG, and JPG. 100% private in-browser processing with bulk batch support.",
@@ -66,10 +66,10 @@ export const metadata: Metadata = {
     "lossless image compression",
     "free online photo editor",
   ],
-  authors: [{ name: "Resizora Engineering", url: SITE_URL }],
-  creator: "Resizora",
-  publisher: "Resizora",
-  applicationName: "Resizora Image Studio",
+  authors: [{ name: "Resizer AI Engineering", url: SITE_URL }],
+  creator: "Resizer AI",
+  publisher: "Resizer AI",
+  applicationName: "Resizer AI Image Studio",
   category: "MultimediaApplication",
   alternates: {
     canonical: "/",
@@ -79,7 +79,7 @@ export const metadata: Metadata = {
     description:
       "Resize, compress & convert images for free in your browser. Exact pixel dimensions, percentage scaling, WebP/AVIF support, and batch processing up to 50 photos.",
     url: SITE_URL,
-    siteName: "Resizora",
+    siteName: "Resizer AI",
     locale: "en_US",
     type: "website",
     images: [
@@ -87,7 +87,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Resizora — Free Online Image Resizer & Compressor",
+        alt: "Resizer AI — Free Online Image Resizer & Compressor",
         type: "image/png",
       },
     ],
@@ -98,7 +98,7 @@ export const metadata: Metadata = {
     description:
       "Resize, compress & convert images online for free. 100% private in-browser engine. WebP, AVIF, JPG, PNG.",
     images: ["/og-image.png"],
-    creator: "@resizora",
+    creator: "@resizer_ai",
   },
   robots: {
     index: true,
@@ -125,7 +125,7 @@ const jsonLdData = {
     {
       "@type": "WebApplication",
       "@id": `${SITE_URL}/#webapp`,
-      name: "Resizora — Free Online Image Resizer & Compressor",
+      name: "Resizer AI — Free Online Image Resizer & Compressor",
       url: SITE_URL,
       applicationCategory: "MultimediaApplication",
       operatingSystem: "All (Web Browser, Chrome, Firefox, Safari, Edge, Mobile)",
@@ -158,7 +158,7 @@ const jsonLdData = {
     {
       "@type": "Organization",
       "@id": `${SITE_URL}/#organization`,
-      name: "Resizora",
+      name: "Resizer AI",
       url: SITE_URL,
       logo: {
         "@type": "ImageObject",
@@ -175,7 +175,7 @@ const jsonLdData = {
         {
           "@type": "HowToStep",
           name: "Upload or Drag & Drop Photos",
-          text: "Upload or drag and drop your JPG, PNG, WebP, or AVIF image files into the Resizora Image Resizer.",
+          text: "Upload or drag and drop your JPG, PNG, WebP, or AVIF image files into the Resizer AI Image Resizer.",
           position: 1,
         },
         {
@@ -282,7 +282,7 @@ const jsonLdData = {
           name: "How do I resize an image online for free?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Drag and drop your image into the Resizora Image Resizer, enter your custom width and height in pixels (or scale by percentage), choose your preferred format like WebP or JPG, and click Download to save the resized image instantly.",
+            text: "Drag and drop your image into the Resizer AI Image Resizer, enter your custom width and height in pixels (or scale by percentage), choose your preferred format like WebP or JPG, and click Download to save the resized image instantly.",
           },
         },
         {
@@ -290,7 +290,7 @@ const jsonLdData = {
           name: "Will resizing an image reduce its quality?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Resizora uses advanced bicubic and Lanczos resampling algorithms alongside fine-tuned quantization to ensure maximum sharpness, edge definition, and accurate color preservation during resizing and compression.",
+            text: "Resizer AI uses advanced bicubic and Lanczos resampling algorithms alongside fine-tuned quantization to ensure maximum sharpness, edge definition, and accurate color preservation during resizing and compression.",
           },
         },
         {
@@ -298,7 +298,7 @@ const jsonLdData = {
           name: "Can I batch resize multiple images at once?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Yes! You can upload up to 50 images at once. Resizora processes each file in parallel and allows you to download all resized images individually or packaged into a single ZIP file.",
+            text: "Yes! You can upload up to 50 images at once. Resizer AI processes each file in parallel and allows you to download all resized images individually or packaged into a single ZIP file.",
           },
         },
         {
@@ -306,7 +306,7 @@ const jsonLdData = {
           name: "Is my data private and secure?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Yes, 100%. Resizora runs local browser canvas and WebAssembly algorithms directly on your machine. Your images and personal photos are never uploaded to remote servers or stored in any database.",
+            text: "Yes, 100%. Resizer AI runs local browser canvas and WebAssembly algorithms directly on your machine. Your images and personal photos are never uploaded to remote servers or stored in any database.",
           },
         },
         {
@@ -314,7 +314,7 @@ const jsonLdData = {
           name: "What image formats are supported for resizing and conversion?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Resizora supports JPEG, JPG, PNG, WebP, AVIF, HEIC, GIF, and BMP. You can cross-convert between any of these formats with customizable compression levels.",
+            text: "Resizer AI supports JPEG, JPG, PNG, WebP, AVIF, HEIC, GIF, and BMP. You can cross-convert between any of these formats with customizable compression levels.",
           },
         },
       ],
