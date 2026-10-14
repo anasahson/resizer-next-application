@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
 const posthogAdminController = require('../controllers/posthogAdmin.controller');
+const contactController = require('../controllers/contact.controller');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 
 // All admin routes strictly require valid SuperAdmin authentication
@@ -21,6 +22,7 @@ router.get('/posts', adminController.handleAdminGetPosts);
 router.post('/posts', adminController.handleAdminCreatePost);
 router.put('/posts/:id', adminController.handleAdminUpdatePost);
 router.delete('/posts/:id', adminController.handleAdminDeletePost);
+router.get('/contact', contactController.handleAdminList);
 
 // PostHog Analytics (reads data back from PostHog via personal API key)
 router.get('/posthog/status', posthogAdminController.handleStatus);

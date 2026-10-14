@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import PostsManager from './components/PostsManager';
 import SystemSettingsPage from './components/SystemSettingsPage';
 import PostHogPanel from './components/PostHogPanel';
+import SupportInbox from './components/SupportInbox';
 import {
   ShieldCheck,
   Server,
@@ -33,6 +34,7 @@ import {
   LogOut,
   Sliders,
   Shield,
+  Mail,
   KeyRound,
   BookOpen,
   Globe,
@@ -123,7 +125,7 @@ export default function SuperAdminControlCenterPage() {
   }, []);
 
   // Active Admin Sidebar Tab
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'posts' | 'settings' | 'users' | 'logs' | 'studio' | 'posthog'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'posts' | 'settings' | 'users' | 'logs' | 'support' | 'studio' | 'posthog'>('telemetry');
 
   // Stats State
   const [system, setSystem] = useState<SystemStats | null>(null);
@@ -146,6 +148,9 @@ export default function SuperAdminControlCenterPage() {
   const [isUsersLoading, setIsUsersLoading] = useState<boolean>(false);
   const [userSearch, setUserSearch] = useState<string>('');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'user' | 'superadmin'>('all');
+
+  // Support Inbox State
+  const [supportMessagesCount, setSupportMessagesCount] = useState<number>(0);
 
   // Admin Sandbox Studio State
   const [sandboxFile, setSandboxFile] = useState<File | null>(null);
@@ -265,6 +270,24 @@ export default function SuperAdminControlCenterPage() {
     }
   }, [token]);
 
+  const fetchSupportMessages = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/contact?limit=20`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setSupportMessagesCount(data.data?.submissions?.length || 0);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load support inbox:', err);
+    }
+  }, [token]);
+
   // Update User Role (SuperAdmin only)
   const handleUpdateRole = async (userId: string, currentRole: 'user' | 'superadmin') => {
     const newRole = currentRole === 'superadmin' ? 'user' : 'superadmin';
@@ -369,8 +392,9 @@ export default function SuperAdminControlCenterPage() {
       fetchStats();
       fetchJobs(1);
       fetchUsers();
+      fetchSupportMessages();
     }
-  }, [isSuperAdmin, fetchStats, fetchJobs, fetchUsers]);
+  }, [isSuperAdmin, fetchStats, fetchJobs, fetchUsers, fetchSupportMessages]);
 
   // Polling for live telemetry
   useEffect(() => {
@@ -542,6 +566,23 @@ export default function SuperAdminControlCenterPage() {
                 </div>
                 <span className="text-[10px] font-mono bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-slate-700 dark:text-zinc-300">
                   {totalRecords}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('support')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'support'
+                    ? 'bg-indigo-50 dark:bg-gradient-to-r dark:from-indigo-600/40 dark:to-purple-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 shadow-sm'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Mail className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Support Inbox</span>
+                </div>
+                <span className="text-[10px] font-mono bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded font-bold">
+                  {supportMessagesCount}
                 </span>
               </button>
 
@@ -726,6 +767,9 @@ export default function SuperAdminControlCenterPage() {
 
             {/* TAB: PLATFORM & AI SETTINGS (Master Settings Hub) */}
             {activeTab === 'settings' && <SystemSettingsPage />}
+
+            {/* TAB: SUPPORT INBOX */}
+            {activeTab === 'support' && <SupportInbox />}
 
             {/* TAB: POSTHOG ANALYTICS (reads data back from PostHog) */}
             {activeTab === 'posthog' && <PostHogPanel />}

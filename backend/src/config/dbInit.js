@@ -289,6 +289,20 @@ const initDb = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS contact_submissions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id VARCHAR(191) DEFAULT NULL,
+        name VARCHAR(120) NOT NULL,
+        email VARCHAR(254) NOT NULL,
+        subject VARCHAR(160) NOT NULL,
+        message VARCHAR(3000) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_contact_created_id (created_at, id),
+        INDEX idx_contact_user_id (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     // Seed default system settings if not exist
     const defaultSettings = [
       ['ai_active_provider', 'auto'],

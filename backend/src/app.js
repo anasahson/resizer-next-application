@@ -17,6 +17,7 @@ const referralRoutes = require('./routes/referral.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const exportRoutes = require('./routes/export.routes');
 const storageRoutes = require('./routes/storage.routes');
+const contactRoutes = require('./routes/contact.routes');
 const { trackException } = require('./services/posthog.service');
 
 const app = express();
@@ -305,6 +306,7 @@ app.use('/api/referral', referralRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/storage', storageRoutes);
+app.use('/api/contact', contactRoutes);
 
 // 404 Handler
 app.use((req, res) => {
