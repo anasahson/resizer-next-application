@@ -102,26 +102,6 @@ test('Vercel upload guard rejects oversized requests and allows requests under t
     },
   });
 
-  test('Auth0 administration service reports unconfigured state without network access', async () => {
-    const auth0Admin = require('../src/services/auth0Admin.service');
-
-    delete process.env.AUTH0_DOMAIN;
-    delete process.env.AUTH0_CLIENT_ID;
-    delete process.env.AUTH0_CLIENT_SECRET;
-    delete process.env.AUTH0_AUDIENCE;
-    auth0Admin.clearTokenCache();
-
-    assert.deepEqual(auth0Admin.getStatus(), {
-      configured: false,
-      hint: 'Auth0 Management API is not configured. Set AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, and AUTH0_AUDIENCE.',
-    });
-
-    await assert.rejects(
-      auth0Admin.getToken(),
-      (error) => error.code === 'NOT_CONFIGURED',
-    );
-  });
-
   try {
     let nextCalled = false;
     const oversizedResponse = makeResponse();
@@ -148,4 +128,24 @@ test('Vercel upload guard rejects oversized requests and allows requests under t
       process.env.VERCEL = originalVercel;
     }
   }
+});
+
+test('Auth0 administration service reports unconfigured state without network access', async () => {
+  const auth0Admin = require('../src/services/auth0Admin.service');
+
+  delete process.env.AUTH0_DOMAIN;
+  delete process.env.AUTH0_CLIENT_ID;
+  delete process.env.AUTH0_CLIENT_SECRET;
+  delete process.env.AUTH0_AUDIENCE;
+  auth0Admin.clearTokenCache();
+
+  assert.deepEqual(auth0Admin.getStatus(), {
+    configured: false,
+    hint: 'Auth0 Management API is not configured. Set AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, and AUTH0_AUDIENCE.',
+  });
+
+  await assert.rejects(
+    auth0Admin.getToken(),
+    (error) => error.code === 'NOT_CONFIGURED',
+  );
 });
