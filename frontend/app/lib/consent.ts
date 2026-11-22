@@ -11,6 +11,7 @@
 
 export const CONSENT_KEY = 'resizer_analytics_consent';
 export const CONSENT_VERSION = 1;
+let inMemoryConsent: ConsentState = null;
 
 export type ConsentState = 'granted' | 'denied' | null;
 
@@ -27,21 +28,22 @@ export function getConsent(): ConsentState {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(CONSENT_KEY);
-    if (!raw) return null;
+    if (!raw) return inMemoryConsent;
     const parsed = JSON.parse(raw) as { granted?: boolean; version?: number };
-    if (typeof parsed.granted !== 'boolean') return null;
+    if (typeof parsed.granted !== 'boolean') return inMemoryConsent;
     // A stored decision from an older consent version is treated as no answer,
     // so changes to what we collect re-prompt the visitor.
-    if (parsed.version !== CONSENT_VERSION) return null;
+    if (parsed.version !== CONSENT_VERSION) return inMemoryConsent;
     return parsed.granted ? 'granted' : 'denied';
   } catch {
-    return null;
+    return inMemoryConsent;
   }
 }
 
 /** Persists a decision and notifies listeners. */
 export function setConsent(granted: boolean): void {
   if (typeof window === 'undefined') return;
+  inMemoryConsent = granted ? 'granted' : 'denied';
   try {
     localStorage.setItem(
       CONSENT_KEY,

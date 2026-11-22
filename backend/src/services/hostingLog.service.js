@@ -5,10 +5,8 @@
  * from (URL import vs system file), how long did it take, did it save, where
  * did it end up, and — if it failed — exactly why.
  *
- * Two sinks, best-effort (logging must never break an upload):
- *   1. backend/logs/hosting/hosting-YYYY-MM-DD.jsonl — append-only daily files
- *      (always written; this is the only record by default)
- *   2. MySQL table image_hosting_logs — optional, enable with HOSTING_LOG_DB=1
+ * Local deployments use append-only daily JSONL files. Vercel deployments use
+ * the MySQL table because function filesystems are ephemeral.
  *
  * Images themselves are never stored here (or anywhere in the database) — only
  * the hosted URL and the metadata around the attempt.
@@ -46,11 +44,10 @@ function appendToFile(entry) {
 }
 
 /**
- * Insert into MySQL — only when HOSTING_LOG_DB=1. Off by default so nothing
- * is written to the database; the log file is the source of truth.
+ * Insert into MySQL when enabled or when running on Vercel.
  */
 async function insertToDb(entry) {
-  if (process.env.HOSTING_LOG_DB !== '1') return false;
+  if (process.env.HOSTING_LOG_DB !== '1' && process.env.VERCEL !== '1') return false;
   if (!isDbAvailable()) return false;
   try {
     await pool.query(
@@ -92,14 +89,14 @@ async function insertToDb(entry) {
  * @param {string} [e.mimeType]
  * @param {string} [e.userId]
  */
-function logHostingEvent(e) {
+async function logHostingEvent(e) {
   const entry = {
     timestamp: new Date().toISOString(),
     source: e.source || 'unknown',
     provider: PROVIDER,
     filename: e.filename || null,
-    status: e.status === 'saved' ? 'saved' : 'failed',
-    url: e.status === 'saved' ? e.url || null : null,
+    status: ['saved', 'deleted'].includes(e.status) ? e.status : 'failed',
+    url: ['saved', 'deleted'].includes(e.status) ? e.url || null : null,
     error: e.status === 'failed' ? String(e.error || 'unknown error').slice(0, 500) : null,
     durationMs: typeof e.durationMs === 'number' ? e.durationMs : null,
     sizeBytes: typeof e.sizeBytes === 'number' ? e.sizeBytes : null,
@@ -107,19 +104,21 @@ function logHostingEvent(e) {
     userId: e.userId || null,
   };
 
-  appendToFile(entry);
-  insertToDb(entry).catch(() => {}); // fire and forget
+  if (process.env.VERCEL !== '1') {
+    appendToFile(entry);
+  }
+  await insertToDb(entry);
   return entry;
 }
 
 /**
- * Recent log entries. Reads the JSONL files (the source of truth); if
- * HOSTING_LOG_DB=1 the MySQL table is used when available.
+ * Recent log entries. MySQL is used when enabled; otherwise JSONL files are
+ * read for local deployments.
  */
 async function listHostingLogs({ limit = 100, status, source } = {}) {
   const capped = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
 
-  if (process.env.HOSTING_LOG_DB === '1' && isDbAvailable()) {
+  if ((process.env.HOSTING_LOG_DB === '1' || process.env.VERCEL === '1') && isDbAvailable()) {
     try {
       const where = [];
       const params = [];
@@ -177,7 +176,7 @@ async function hostingLogsCsv(options = {}) {
 }
 
 /**
- * Saved-image history, rebuilt from the JSONL log files.
+ * Saved-image history, rebuilt from the persistent host log.
  *
  * This replaces the old `stored_images` table: images live on imgbb and the
  * log is the only place their URLs are recorded. When `userId` is supplied
@@ -185,6 +184,41 @@ async function hostingLogsCsv(options = {}) {
  * signed-in user can never see another user's links.
  */
 async function listSavedImages({ userId = null, limit = 100 } = {}) {
+  const capped = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
+
+  if (process.env.VERCEL === '1' && isDbAvailable()) {
+    const [rows] = await pool.query(
+      `SELECT saved.id, saved.filename, saved.mime_type, saved.size_bytes,
+              saved.url, saved.created_at, saved.source, saved.duration_ms, saved.user_id
+         FROM image_hosting_logs AS saved
+        WHERE saved.status = 'saved'
+          AND saved.url IS NOT NULL
+          AND (? IS NULL OR saved.user_id = ?)
+          AND NOT EXISTS (
+            SELECT 1
+              FROM image_hosting_logs AS deleted
+             WHERE deleted.status = 'deleted'
+               AND deleted.url = saved.url
+               AND deleted.id > saved.id
+          )
+        ORDER BY saved.id DESC
+        LIMIT ${capped}`,
+      [userId, userId],
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      filename: row.filename,
+      mimeType: row.mime_type,
+      sizeBytes: row.size_bytes,
+      url: row.url,
+      source: row.source,
+      durationMs: row.duration_ms,
+      timestamp: row.created_at,
+      userId: row.user_id,
+    }));
+  }
+
   try {
     ensureDir();
     const files = fs
@@ -193,7 +227,6 @@ async function listSavedImages({ userId = null, limit = 100 } = {}) {
       .sort()
       .reverse(); // newest day first
 
-    const capped = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
     const found = [];
     // The log is append-only, so a later `deleted` entry must cancel the earlier
     // `saved` one — otherwise removing an image from imgbb would still leave its

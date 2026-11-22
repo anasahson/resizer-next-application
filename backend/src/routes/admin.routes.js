@@ -3,6 +3,7 @@ const router = express.Router();
 const adminController = require('../controllers/admin.controller');
 const posthogAdminController = require('../controllers/posthogAdmin.controller');
 const contactController = require('../controllers/contact.controller');
+const auth0AdminController = require('../controllers/auth0Admin.controller');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 
 // All admin routes strictly require valid SuperAdmin authentication
@@ -39,5 +40,10 @@ router.get('/posthog/inputs', posthogAdminController.handleInputs);
 // Image hosting audit trail (superadmin only)
 router.get('/hosting/logs', posthogAdminController.handleListHostingLogs);
 router.get('/hosting/logs.csv', posthogAdminController.handleDownloadHostingLogsCsv);
+
+// Auth0 Management API (credentials stay server-side)
+router.get('/auth0/status', auth0AdminController.handleStatus);
+router.get('/auth0/users', auth0AdminController.handleListUsers);
+router.get('/auth0/users/:id', auth0AdminController.handleGetUser);
 
 module.exports = router;

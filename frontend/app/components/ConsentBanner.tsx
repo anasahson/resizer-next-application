@@ -1,8 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
-import { getConsent, setConsent } from '../lib/consent';
+import { getConsent, onConsentChange, setConsent } from '../lib/consent';
+
+const subscribeToConsent = (onStoreChange: () => void) =>
+  onConsentChange(() => onStoreChange());
+const getVisibleSnapshot = () => getConsent() === null;
+const getServerVisibleSnapshot = () => false;
 
 /**
  * Analytics consent banner.
@@ -15,18 +20,16 @@ import { getConsent, setConsent } from '../lib/consent';
  * The decision is stored in localStorage; see app/lib/consent.ts.
  */
 export default function ConsentBanner() {
-  // null = not resolved yet (avoid a flash of the banner on returning visits).
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    setVisible(getConsent() === null);
-  }, []);
+  const visible = useSyncExternalStore(
+    subscribeToConsent,
+    getVisibleSnapshot,
+    getServerVisibleSnapshot,
+  );
 
   if (!visible) return null;
 
   const choose = (granted: boolean) => {
     setConsent(granted);
-    setVisible(false);
   };
 
   return (

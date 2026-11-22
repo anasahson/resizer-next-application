@@ -58,9 +58,8 @@ function sendError(res, err) {
 
 /**
  * POST /api/storage/upload
- * Upload the processed image to imgbb. Nothing is written to the database; the
- * attempt is appended to the daily JSONL hosting log. If imgbb fails, nothing
- * is recorded beyond the failure entry in that log.
+ * Upload the processed image to imgbb and record metadata in the host's
+ * persistent log store.
  */
 async function handleStorageUpload(req, res) {
   const startedAt = Date.now();
@@ -85,10 +84,8 @@ async function handleStorageUpload(req, res) {
       name: filename,
     });
 
-    // Images are hosted on imgbb and recorded ONLY in the log file — nothing
-    // is written to the database. `HOSTING_LOG_DB=1` opts into keeping log
-    // metadata rows in MySQL as well.
-    logHostingEvent({
+    // Image bytes stay on the hosting provider; only metadata is logged.
+    await logHostingEvent({
       source,
       status: 'saved',
       filename,
@@ -111,9 +108,8 @@ async function handleStorageUpload(req, res) {
       sizeBytes: uploaded.size || upload.buffer.length,
     });
   } catch (err) {
-    // Record the failure so "where did it fail" is answerable later — this is
-    // exactly what would have captured the imgbb rejections (HTTP 400 code 103).
-    logHostingEvent({
+    // Record the failure so "where did it fail" is answerable later.
+    await logHostingEvent({
       source,
       status: 'failed',
       filename: req.body?.filename || req.file?.originalname || null,
@@ -180,7 +176,7 @@ async function handleDeleteHostedImage(req, res) {
   try {
     await deleteImage(target);
     // Record the removal so the saved list stops offering a dead link.
-    logHostingEvent({
+    await logHostingEvent({
       source: req.body?.source || 'system-file',
       status: 'deleted',
       url: req.body?.url || null,
@@ -250,5 +246,3 @@ module.exports = {
   handleStorageStatus,
   handleStorageDiagnose,
 };
-
-

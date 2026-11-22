@@ -64,6 +64,7 @@ async function call(handler, req = {}) {
   console.log('ok: feature flags with bogus key -> 502:', (res.body.error || '').slice(0, 110));
 
   delete process.env.POSTHOG_PERSONAL_API_KEY;
+  process.env.POSTHOG_PERSONAL_API_KEY = '';
 
   // ---- 4. Full HTTP layer (app boots, auth enforced) ---------------------
   const app = require('./src/app');

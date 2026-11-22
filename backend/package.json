@@ -2,10 +2,14 @@
   "name": "resizer-backend",
   "version": "1.0.0",
   "description": "Express.js backend for image resizing, compression, and format conversion",
-  "main": "src/server.js",
+  "main": "index.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
   },
   "keywords": [
     "express",

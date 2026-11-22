@@ -211,6 +211,9 @@ const initDb = async () => {
     // Optional first-admin bootstrap. Existing accounts are never overwritten.
     if (process.env.SUPERADMIN_EMAIL && process.env.SUPERADMIN_PASSWORD) {
       const superAdminEmail = process.env.SUPERADMIN_EMAIL.toLowerCase().trim();
+      if (process.env.NODE_ENV === 'production' && process.env.SUPERADMIN_PASSWORD.length < 12) {
+        throw new Error('SUPERADMIN_PASSWORD must be at least 12 characters in production.');
+      }
       const passwordHash = await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10);
       await connection.query(
         `INSERT INTO User (id, name, email, passwordHash, role)

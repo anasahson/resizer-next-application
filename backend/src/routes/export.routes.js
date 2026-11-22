@@ -4,8 +4,7 @@
 
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
-const upload = multer({ limits: { fileSize: 32 * 1024 * 1024 } });
+const upload = require('../middleware/upload.middleware');
 const { uploadLimiter, uploadGate } = require('../middleware/upload-guard.middleware');
 const { handleImgbbExport } = require('../controllers/export.controller');
 

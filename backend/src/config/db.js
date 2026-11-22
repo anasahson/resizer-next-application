@@ -24,7 +24,7 @@ const pool = mysql.createPool({
     },
   }),
   waitForConnections: true,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 10,
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || (process.env.VERCEL === '1' ? 5 : 10),
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
@@ -59,4 +59,3 @@ module.exports = {
   testConnection,
   isDbAvailable,
 };
-

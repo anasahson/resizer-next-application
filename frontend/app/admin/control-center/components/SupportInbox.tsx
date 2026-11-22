@@ -33,13 +33,13 @@ function formatDate(dateString: string) {
 export default function SupportInbox() {
   const { token } = useAuth();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadedToken, setLoadedToken] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const isLoading = Boolean(token) && (loadedToken !== token || isRefreshing);
 
   const loadMessages = useCallback(async () => {
     if (!token) return;
-    setIsLoading(true);
-    setError('');
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/contact?limit=20`, {
@@ -53,17 +53,27 @@ export default function SupportInbox() {
       }
 
       setMessages(data.data?.submissions || []);
+      setError('');
     } catch (err) {
       console.error('Support inbox error', err);
       setError(err instanceof Error ? err.message : 'Unable to load the support inbox.');
     } finally {
-      setIsLoading(false);
+      setLoadedToken(token);
+      setIsRefreshing(false);
     }
   }, [token]);
 
   useEffect(() => {
-    loadMessages();
+    const timer = window.setTimeout(() => {
+      void loadMessages();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadMessages]);
+
+  const refreshMessages = () => {
+    setIsRefreshing(true);
+    void loadMessages();
+  };
 
   return (
     <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50 dark:shadow-xl">
@@ -78,7 +88,7 @@ export default function SupportInbox() {
         </div>
         <button
           type="button"
-          onClick={loadMessages}
+          onClick={refreshMessages}
           className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
         >
           Refresh inbox

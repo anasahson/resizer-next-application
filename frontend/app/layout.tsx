@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "./components/Navbar";
-import Footer from "./components/Footer";
+import SiteChrome from "./components/SiteChrome";
 import { AuthProvider } from "./context/AuthContext";
 import PostHogProvider from "./components/PostHogProvider";
 import { Suspense } from "react";
@@ -339,11 +338,7 @@ export default function RootLayout({
         <AuthProvider>
           <Suspense fallback={null}>
             <PostHogProvider>
-              <Navbar />
-              <main className="flex-1 pt-16">
-                {children}
-              </main>
-              <Footer />
+              <SiteChrome>{children}</SiteChrome>
             </PostHogProvider>
           </Suspense>
         </AuthProvider>

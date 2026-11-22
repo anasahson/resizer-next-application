@@ -19,8 +19,12 @@ const exportRoutes = require('./routes/export.routes');
 const storageRoutes = require('./routes/storage.routes');
 const contactRoutes = require('./routes/contact.routes');
 const { trackException } = require('./services/posthog.service');
+const vercelUploadBodyLimit = require('./middleware/vercel-upload-body-limit.middleware');
 
 const app = express();
+if (process.env.VERCEL === '1') {
+  app.set('trust proxy', 1);
+}
 
 // Middleware
 if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
@@ -77,9 +81,43 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(morgan('dev'));
+app.use(vercelUploadBodyLimit);
 app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+if (process.env.VERCEL === '1') {
+  const { testConnection } = require('./config/db');
+  const { initDb } = require('./config/dbInit');
+  let databaseInitialization;
+
+  app.use(async (req, res, next) => {
+    try {
+      if (!databaseInitialization) {
+        databaseInitialization = (async () => {
+          if (!(await testConnection())) {
+            throw new Error('Database connection failed.');
+          }
+          if (!(await initDb())) {
+            throw new Error('Database initialization failed.');
+          }
+        })().catch((error) => {
+          databaseInitialization = null;
+          throw error;
+        });
+      }
+
+      await databaseInitialization;
+      next();
+    } catch (error) {
+      console.error('[vercel] database initialization failed:', error.message);
+      res.status(503).json({
+        error: 'ServiceUnavailable',
+        message: 'The backend is not ready because database initialization failed.',
+      });
+    }
+  });
+}
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -135,7 +173,7 @@ const getApiData = () => ({
       track: { method: 'POST', path: '/api/analytics/track-event', desc: 'Telemetry event ingestion' },
     },
     storage: {
-      upload: { method: 'POST', path: '/api/storage/upload', desc: 'Save processed image to imgbb (logged to JSONL, not the database)' },
+      upload: { method: 'POST', path: '/api/storage/upload', desc: 'Save processed image to imgbb (hosting metadata is logged)' },
       image: { method: 'GET', path: '/api/storage/:id/image', desc: 'Permanent public image URL (redirects to the CDN)' },
       mine: { method: 'GET', path: '/api/storage/images', desc: 'Saved images for the signed-in user (Auth required)' },
       delete: { method: 'DELETE', path: '/api/storage/:id', desc: 'Forget a saved image record (Auth required)' },
@@ -252,8 +290,15 @@ const sendApiIndex = (req, res) => {
 // Protected API Portal HTTP Basic Authentication
 const protectApiPortal = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const expectedUser = process.env.API_DOCS_USER || 'admin';
-  const expectedPass = process.env.API_DOCS_PASSWORD || process.env.SUPERADMIN_PASSWORD || 'Gravity@99';
+  const expectedUser = process.env.API_DOCS_USER;
+  const expectedPass = process.env.API_DOCS_PASSWORD;
+
+  if (!expectedUser || !expectedPass) {
+    return res.status(503).json({
+      error: 'ServiceUnavailable',
+      message: 'The API portal is unavailable until API_DOCS_USER and API_DOCS_PASSWORD are configured.',
+    });
+  }
 
   if (!authHeader || !authHeader.startsWith('Basic ')) {
     res.setHeader('WWW-Authenticate', 'Basic realm="Protected Resizer API Portal"');
@@ -278,8 +323,8 @@ const protectApiPortal = (req, res, next) => {
   const user = decoded.substring(0, colonIndex);
   const pass = decoded.substring(colonIndex + 1);
 
-  const isUserValid = (user === expectedUser) || (user === (process.env.SUPERADMIN_EMAIL || 'resizer@anas.com'));
-  const isPassValid = (pass === expectedPass) || (pass === (process.env.SUPERADMIN_PASSWORD || 'Gravity@99'));
+  const isUserValid = user === expectedUser;
+  const isPassValid = pass === expectedPass;
 
   if (isUserValid && isPassValid) {
     return next();
@@ -321,7 +366,9 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('[Error]:', err.message || err);
 
-  const statusCode = err.status || err.statusCode || 500;
+  const statusCode = err.code === 'LIMIT_FILE_SIZE'
+    ? 413
+    : (err.status || err.statusCode || 500);
 
   // Report server-side 5xx to PostHog Error Tracking (best-effort; the
   // trackException call never throws).

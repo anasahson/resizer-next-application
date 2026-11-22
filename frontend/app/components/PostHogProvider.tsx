@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { initPostHog, optOutPostHog } from '../lib/posthog';
 import { initFrontendTracking, resetSectionTracking } from '../lib/tracking';
@@ -10,14 +10,10 @@ import posthog from 'posthog-js';
 
 export default function PostHogProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  // Drives the consent banner; `undefined` = decision not yet known (SSR /
-  // first paint), so nothing is initialised and no banner flashes.
-  const [consentKnown, setConsentKnown] = useState<boolean | null>(null);
 
   // Resolve the stored decision, then start analytics only if granted.
   useEffect(() => {
     const granted = getConsent() === 'granted';
-    setConsentKnown(true);
     if (granted) {
       initPostHog();
       initFrontendTracking();
@@ -84,8 +80,7 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
   return (
     <>
       {children}
-      {/* Only rendered until a choice is stored; analytics stay off while visible. */}
-      {consentKnown && <ConsentBanner />}
+      <ConsentBanner />
     </>
   );
 }

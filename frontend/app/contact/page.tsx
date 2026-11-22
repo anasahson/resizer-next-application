@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, CheckCircle2, Mail, MessageSquareText, ShieldCheck, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -32,15 +32,6 @@ export default function ContactPage() {
     message: '',
   });
 
-  useEffect(() => {
-    if (!user) return;
-    setForm((current) => ({
-      ...current,
-      name: current.name || user.name || '',
-      email: current.email || user.email || '',
-    }));
-  }, [user]);
-
   const handleChange = (field: keyof ContactFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
@@ -49,8 +40,8 @@ export default function ContactPage() {
     event.preventDefault();
     setStatus({ type: 'idle', message: '' });
 
-    const name = form.name.trim();
-    const email = form.email.trim().toLowerCase();
+    const name = (form.name || user?.name || '').trim();
+    const email = (form.email || user?.email || '').trim().toLowerCase();
     const subject = form.subject.trim();
     const message = form.message.trim();
 
@@ -161,7 +152,7 @@ export default function ContactPage() {
                 </span>
                 <input
                   type="text"
-                  value={form.name}
+                  value={form.name || user?.name || ''}
                   onChange={(event) => handleChange('name', event.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none ring-0 transition focus:border-indigo-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
                   placeholder="Jane Doe"
@@ -176,7 +167,7 @@ export default function ContactPage() {
                 </span>
                 <input
                   type="email"
-                  value={form.email}
+                  value={form.email || user?.email || ''}
                   onChange={(event) => handleChange('email', event.target.value)}
                   readOnly={Boolean(user)}
                   className={`w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition ${user

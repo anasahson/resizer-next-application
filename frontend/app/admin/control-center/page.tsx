@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import PostsManager from './components/PostsManager';
 import SystemSettingsPage from './components/SystemSettingsPage';
 import PostHogPanel from './components/PostHogPanel';
 import SupportInbox from './components/SupportInbox';
+import Auth0Panel from './components/Auth0Panel';
 import {
   ShieldCheck,
   Server,
@@ -115,17 +116,21 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
   || '';
 
+const subscribeToMount = (_onStoreChange: () => void) => () => {};
+const getClientMountSnapshot = () => true;
+const getServerMountSnapshot = () => false;
+
 export default function SuperAdminControlCenterPage() {
   const router = useRouter();
   const { user, token, isSuperAdmin, isLoading, logout } = useAuth();
-  const [hasMounted, setHasMounted] = useState(false);
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
+  const hasMounted = useSyncExternalStore(
+    subscribeToMount,
+    getClientMountSnapshot,
+    getServerMountSnapshot,
+  );
 
   // Active Admin Sidebar Tab
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'posts' | 'settings' | 'users' | 'logs' | 'support' | 'studio' | 'posthog'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'posts' | 'settings' | 'users' | 'logs' | 'support' | 'studio' | 'posthog' | 'auth0'>('telemetry');
 
   // Stats State
   const [system, setSystem] = useState<SystemStats | null>(null);
@@ -604,6 +609,21 @@ export default function SuperAdminControlCenterPage() {
               </button>
 
               <button
+                onClick={() => setActiveTab('auth0')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'auth0'
+                    ? 'bg-indigo-50 dark:bg-gradient-to-r dark:from-indigo-600/40 dark:to-purple-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 shadow-sm'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Shield className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                  <span>Auth0 Management</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+              </button>
+
+              <button
                 onClick={() => setActiveTab('studio')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   activeTab === 'studio'
@@ -773,6 +793,9 @@ export default function SuperAdminControlCenterPage() {
 
             {/* TAB: POSTHOG ANALYTICS (reads data back from PostHog) */}
             {activeTab === 'posthog' && <PostHogPanel />}
+
+            {/* TAB: AUTH0 MANAGEMENT (credentials remain server-side) */}
+            {activeTab === 'auth0' && <Auth0Panel />}
 
             {/* TAB 1: TELEMETRY */}
             {activeTab === 'telemetry' && (

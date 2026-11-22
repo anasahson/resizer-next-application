@@ -23,7 +23,10 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const maxFileSize = (parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 50) * 1024 * 1024;
+const configuredMaxFileSize = (parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 50) * 1024 * 1024;
+const maxFileSize = process.env.VERCEL === '1'
+  ? Math.min(configuredMaxFileSize, 16 * 1024 * 1024)
+  : configuredMaxFileSize;
 
 const upload = multer({
   storage,
@@ -35,3 +38,4 @@ const upload = multer({
 });
 
 module.exports = upload;
+module.exports.MAX_FILE_SIZE_BYTES = maxFileSize;

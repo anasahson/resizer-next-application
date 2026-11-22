@@ -6,11 +6,23 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, User as UserIcon, LogOut, LogIn, Sparkles, LayoutDashboard, Sun, Moon, UserPlus } from 'lucide-react';
 
+interface NavDropdownItem {
+  label: string;
+  href: string;
+  desc?: string;
+  icon?: string;
+}
+
+interface NavDropdownSection {
+  titleLabel: string;
+  items: NavDropdownItem[];
+}
+
 interface NavItem {
   label: string;
   href: string;
   badge?: string;
-  dropdown?: { label: string; href: string; desc?: string; icon?: string }[];
+  dropdown?: NavDropdownSection[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -18,13 +30,25 @@ const NAV_ITEMS: NavItem[] = [
   {
     label: 'Tools',
     href: '/tools',
+    // Mega dropdown structure grouped by tool category.
     dropdown: [
-      { label: 'Convert to WebP', href: '/tools', desc: 'Superior web compression', icon: '🖼️' },
-      { label: 'Convert to AVIF', href: '/tools', desc: 'Next-gen image format', icon: '✨' },
-      { label: 'Convert to JPG', href: '/tools', desc: 'Universal compatibility', icon: '📷' },
-      { label: 'Convert to PNG', href: '/tools', desc: 'Lossless transparency', icon: '🎨' },
-      { label: 'Convert to HEIC', href: '/tools', desc: 'Apple high efficiency format', icon: '🍎' },
-      { label: 'Compress Image', href: '/tools', desc: 'Shrink file size instantly', icon: '⚡' },
+      { titleLabel: 'Convert', items: [
+        { label: 'Convert to WebP', href: '/tools', desc: 'Superior web compression', icon: '🖼️' },
+        { label: 'Convert to AVIF', href: '/tools', desc: 'Next-gen image format', icon: '✨' },
+        { label: 'Convert to JPG', href: '/tools', desc: 'Universal compatibility', icon: '📷' },
+        { label: 'Convert to PNG', href: '/tools', desc: 'Lossless transparency', icon: '🎨' },
+        { label: 'Convert to HEIC', href: '/tools', desc: 'Apple high efficiency format', icon: '🍎' },
+      ]},
+      { titleLabel: 'Compress', items: [
+        { label: 'Compress Image', href: '/tools', desc: 'Shrink file size instantly', icon: '⚡' },
+        { label: 'Resize Image', href: '/tools', desc: 'Change dimensions easily', icon: '📏' },
+        { label: 'Crop Image', href: '/tools', desc: 'Adjust framing and aspect ratio', icon: '✂️' },
+      ]},
+      { titleLabel: 'Batch Processing', items: [
+        { label: 'Batch Process', href: '/tools', desc: 'Process up to 50 images in parallel', icon: '📦' },
+        { label: 'Image Merger', href: '/tools', desc: 'Merge multiple images into one', icon: '🔀' },
+        { label: 'Create ZIP', href: '/tools', desc: 'Download processed images as ZIP', icon: '📁' },
+      ]},
     ],
   },
   { label: 'Features', href: '/features' },
@@ -145,30 +169,34 @@ export default function Navbar() {
                       }`}
                   >
                     <div className="bg-surface dark:bg-zinc-900 border border-border/80 rounded-2xl shadow-xl p-2 backdrop-blur-xl">
-                      <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted/70">
-                        Conversion Tools
-                      </div>
-                      {item.dropdown.map((tool) => (
-                        <Link
-                          key={tool.label}
-                          href={tool.href}
-                          onClick={() => setToolsDropdownOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-secondary hover:text-primary dark:text-zinc-300 dark:hover:text-white hover:bg-accent/10 dark:hover:bg-white/5 transition-all group/item"
-                        >
-                          <span className="text-lg group-hover/item:scale-110 transition-transform">
-                            {tool.icon}
-                          </span>
-                          <div>
-                            <div className="font-medium text-primary dark:text-white leading-tight">
-                              {tool.label}
-                            </div>
-                            {tool.desc && (
-                              <div className="text-xs text-muted leading-tight mt-0.5">
-                                {tool.desc}
-                              </div>
-                            )}
+                      {item.dropdown.map((section) => (
+                        <section key={section.titleLabel}>
+                          <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted/70">
+                            {section.titleLabel}
                           </div>
-                        </Link>
+                          {section.items.map((tool) => (
+                            <Link
+                              key={tool.label}
+                              href={tool.href}
+                              onClick={() => setToolsDropdownOpen(false)}
+                              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-secondary hover:text-primary dark:text-zinc-300 dark:hover:text-white hover:bg-accent/10 dark:hover:bg-white/5 transition-all group/item"
+                            >
+                              <span className="text-lg group-hover/item:scale-110 transition-transform">
+                                {tool.icon}
+                              </span>
+                              <div>
+                                <div className="font-medium text-primary dark:text-white leading-tight">
+                                  {tool.label}
+                                </div>
+                                {tool.desc && (
+                                  <div className="text-xs text-muted leading-tight mt-0.5">
+                                    {tool.desc}
+                                  </div>
+                                )}
+                              </div>
+                            </Link>
+                          ))}
+                        </section>
                       ))}
                     </div>
                   </div>
@@ -345,16 +373,23 @@ export default function Navbar() {
                     <span className="text-xs text-muted">All tools →</span>
                   </Link>
                   <div className="pl-3 pr-1 py-1 space-y-1">
-                    {item.dropdown.map((tool) => (
-                      <Link
-                        key={tool.label}
-                        href={tool.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted hover:text-primary dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                      >
-                        <span>{tool.icon}</span>
-                        <span>{tool.label}</span>
-                      </Link>
+                    {item.dropdown.map((section) => (
+                      <div key={section.titleLabel}>
+                        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+                          {section.titleLabel}
+                        </div>
+                        {section.items.map((tool) => (
+                          <Link
+                            key={tool.label}
+                            href={tool.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted hover:text-primary dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          >
+                            <span>{tool.icon}</span>
+                            <span>{tool.label}</span>
+                          </Link>
+                        ))}
+                      </div>
                     ))}
                   </div>
                 </div>

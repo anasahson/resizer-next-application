@@ -29,7 +29,7 @@ router.get('/', (req, res) => {
   res.json({
     endpoint: '/api/storage/upload',
     method: 'POST',
-    description: 'Upload a processed image to imgbb (attempts are logged to JSONL, never written to the database)',
+    description: 'Upload a processed image to imgbb and log hosting metadata',
     contentType: 'multipart/form-data or application/json',
     body: {
       image: 'multipart file field (preferred)',

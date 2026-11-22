@@ -1,0 +1,83 @@
+name: CI and Vercel Deploy
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-checks:
+    name: Frontend lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+  backend-checks:
+    name: Backend smoke and regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+
+  deploy-frontend:
+    name: Deploy frontend to its Vercel account
+    needs: [frontend-checks, backend-checks, deploy-backend]
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_FRONTEND_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_FRONTEND_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_FRONTEND_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npx --yes vercel@66.6.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+        working-directory: frontend
+      - run: npx --yes vercel@66.6.0 build --prod --token="$VERCEL_TOKEN"
+        working-directory: frontend
+      - run: npx --yes vercel@66.6.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        working-directory: frontend
+
+  deploy-backend:
+    name: Deploy backend to its Vercel account
+    needs: [frontend-checks, backend-checks]
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_BACKEND_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_BACKEND_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_BACKEND_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npx --yes vercel@66.6.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+        working-directory: backend
+      - run: npx --yes vercel@66.6.0 build --prod --token="$VERCEL_TOKEN"
+        working-directory: backend
+      - run: npx --yes vercel@66.6.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        working-directory: backend
