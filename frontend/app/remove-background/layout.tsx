@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 const title = 'Remove Image Background Online';
 const description =
-  'Create transparent PNG cutouts from JPEG, PNG, or WebP images with AI background removal. Sign-in and account approval are required.';
+  'Create transparent PNG cutouts from JPEG, PNG, or WebP images with browser-based AI. Your image stays on your device.';
 
 export const metadata: Metadata = {
   title,

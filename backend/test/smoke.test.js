@@ -1,12 +1,14 @@
 const assert = require('node:assert/strict');
 const { after, before, test } = require('node:test');
-const jwt = require('jsonwebtoken');
+const sharp = require('sharp');
 
 process.env.JWT_SECRET = 'smoke-test-only-secret-with-at-least-32-characters';
 process.env.NODE_ENV = 'test';
 process.env.CORS_ORIGIN = 'https://frontend.example.test';
 
 const upload = require('../src/middleware/upload.middleware');
+const jobService = require('../src/services/job.service');
+jobService.recordJob = async () => null;
 const app = require('../src/app');
 
 let server;
@@ -61,15 +63,25 @@ test('API returns a JSON 404 for unknown routes', async () => {
   assert.equal((await response.json()).error, 'Not Found');
 });
 
-test('CORS permits the configured frontend origin only', async () => {
-  const allowed = await fetch(`${baseUrl}/api/health`, {
-    method: 'OPTIONS',
-    headers: {
-      Origin: 'https://frontend.example.test',
-      'Access-Control-Request-Method': 'GET',
-    },
-  });
-  assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://frontend.example.test');
+test('CORS allows configured and deployed frontend origins with requested headers', async () => {
+  for (const origin of [
+    'https://frontend.example.test',
+    'https://resizer-ai.vercel.app',
+    'https://resizer-pi-tan.vercel.app',
+    'http://localhost:3000',
+  ]) {
+    const allowed = await fetch(`${baseUrl}/api/health`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: origin,
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'content-type,authorization,x-requested-with',
+      },
+    });
+    assert.equal(allowed.headers.get('access-control-allow-origin'), origin);
+    assert.equal(allowed.headers.get('access-control-allow-credentials'), 'true');
+    assert.match(allowed.headers.get('access-control-allow-headers'), /X-Requested-With/i);
+  }
 
   const denied = await fetch(`${baseUrl}/api/health`, {
     method: 'OPTIONS',
@@ -79,6 +91,43 @@ test('CORS permits the configured frontend origin only', async () => {
     },
   });
   assert.equal(denied.headers.get('access-control-allow-origin'), null);
+});
+
+test('single and batch image processing return the encoded output metadata', async () => {
+  const image = await sharp({
+    create: {
+      width: 32,
+      height: 24,
+      channels: 3,
+      background: { r: 40, g: 180, b: 90 },
+    },
+  }).png().toBuffer();
+
+  const singleForm = new FormData();
+  singleForm.append('image', new Blob([image], { type: 'image/png' }), 'sample.png');
+  singleForm.append('format', 'png');
+  const singleResponse = await fetch(`${baseUrl}/api/images/process?responseType=json`, {
+    method: 'POST',
+    body: singleForm,
+  });
+  assert.equal(singleResponse.status, 200);
+  const singleResult = await singleResponse.json();
+  assert.equal(singleResult.width, 32);
+  assert.equal(singleResult.height, 24);
+  assert.equal(singleResult.format, 'png');
+
+  const batchForm = new FormData();
+  batchForm.append('images', new Blob([image], { type: 'image/png' }), 'sample.png');
+  batchForm.append('format', 'png');
+  const batchResponse = await fetch(`${baseUrl}/api/images/batch?responseType=json`, {
+    method: 'POST',
+    body: batchForm,
+  });
+  assert.equal(batchResponse.status, 200);
+  const batchResult = await batchResponse.json();
+  assert.equal(batchResult.results[0].width, 32);
+  assert.equal(batchResult.results[0].height, 24);
+  assert.equal(batchResult.results[0].format, 'png');
 });
 
 test('Auth0 administration service reports unconfigured state without network access', async () => {
@@ -101,35 +150,10 @@ test('Auth0 administration service reports unconfigured state without network ac
   );
 });
 
-test('background removal endpoint requires authentication before provider access', async () => {
-  const response = await fetch(`${baseUrl}/api/images/remove-background`, {
-    method: 'POST',
-  });
-  assert.equal(response.status, 401);
-  assert.equal((await response.json()).error, 'Unauthorized');
-});
+test('background removal is not exposed as a backend API', async () => {
+  const postResponse = await fetch(`${baseUrl}/api/images/remove-background`, { method: 'POST' });
+  assert.equal(postResponse.status, 404);
 
-test('background removal is restricted to configured accounts before provider use', async () => {
-  delete process.env.REMOVE_BG_API_KEY;
-  delete process.env.REMOVE_BG_ALLOWED_USER_IDS;
-  const token = jwt.sign({ id: 'smoke-user', email: 'smoke@example.test', role: 'user' }, process.env.JWT_SECRET);
-
-  const response = await fetch(`${baseUrl}/api/images/remove-background/status`);
-  assert.equal(response.status, 401);
-  assert.equal((await response.json()).error, 'Unauthorized');
-
-  const statusResponse = await fetch(`${baseUrl}/api/images/remove-background/status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  assert.equal(statusResponse.status, 200);
-  assert.deepEqual(await statusResponse.json(), { configured: false, available: false });
-
-  process.env.REMOVE_BG_API_KEY = 'test-key-not-used';
-  const deniedResponse = await fetch(`${baseUrl}/api/images/remove-background`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  assert.equal(deniedResponse.status, 403);
-  assert.match((await deniedResponse.json()).error, /not enabled/);
-  delete process.env.REMOVE_BG_API_KEY;
+  const statusResponse = await fetch(`${baseUrl}/api/images/remove-background/status`);
+  assert.equal(statusResponse.status, 404);
 });

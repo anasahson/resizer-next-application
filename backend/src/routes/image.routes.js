@@ -3,72 +3,14 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const dns = require('node:dns').promises;
 const net = require('node:net');
-const multer = require('multer');
 const upload = require('../middleware/upload.middleware');
 const { checkQuotaOptional } = require('../middleware/quota.middleware');
-const { authenticateToken, optionalAuth } = require('../middleware/auth.middleware');
-const removeBackgroundService = require('../services/removeBackground.service');
-const {
-  getStatus: getRemoveBackgroundStatus,
-  handleRemoveBackground,
-} = require('../controllers/removeBackground.controller');
+const { optionalAuth } = require('../middleware/auth.middleware');
 const {
   getImageMetadata,
   processImage,
   processBatch,
 } = require('../controllers/image.controller');
-
-const REMOVE_BG_MAX_BYTES = 10 * 1024 * 1024;
-const removeBackgroundUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: REMOVE_BG_MAX_BYTES, files: 1 },
-  fileFilter: (req, file, callback) => {
-    if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
-      return callback(null, true);
-    }
-    const error = new Error('Choose a JPEG, PNG, or WebP image.');
-    error.status = 415;
-    return callback(error);
-  },
-});
-const removeBackgroundLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 3,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    success: false,
-    error: 'TooManyRequests',
-    message: 'Background removal is limited to 3 requests per 15 minutes. Please try again later.',
-  },
-});
-
-function requireRemoveBackgroundAccess(req, res, next) {
-  const { configured, allowedUserIds } = removeBackgroundService.getStatus();
-  if (!configured) {
-    return res.status(503).json({
-      success: false,
-      error: 'Background removal is not configured on the server.',
-    });
-  }
-  if (!allowedUserIds.includes(String(req.user.id))) {
-    return res.status(403).json({
-      success: false,
-      error: 'Your account is not enabled for background removal.',
-    });
-  }
-  return next();
-}
-
-router.get('/remove-background/status', authenticateToken, getRemoveBackgroundStatus);
-router.post(
-  '/remove-background',
-  authenticateToken,
-  requireRemoveBackgroundAccess,
-  removeBackgroundLimiter,
-  removeBackgroundUpload.single('image'),
-  handleRemoveBackground
-);
 
 // Metadata extraction endpoint (public, optional auth for quota tracking)
 router.get('/metadata', (req, res) => {

@@ -199,8 +199,7 @@ async function processImage(req, res, next) {
         break;
     }
 
-    const outputBuffer = await pipeline.toBuffer();
-    const outputMetadata = await sharp(outputBuffer).metadata();
+    const { data: outputBuffer, info: outputMetadata } = await pipeline.toBuffer({ resolveWithObject: true });
     const processingTimeMs = Date.now() - startTime;
 
     const originalNameBase = req.file.originalname.replace(/\.[^/.]+$/, '');
@@ -401,8 +400,7 @@ async function processBatch(req, res, next) {
             pipeline = pipeline.webp({ quality: parsedQuality });
           }
 
-          const outputBuffer = await pipeline.toBuffer();
-          const meta = await sharp(outputBuffer).metadata();
+          const { data: outputBuffer, info: meta } = await pipeline.toBuffer({ resolveWithObject: true });
           const originalBase = file.originalname.replace(/\.[^/.]+$/, '');
           const filename = `${originalBase}_resized.${ext}`;
           const savingsPercent = Math.round((1 - outputBuffer.length / file.size) * 100);

@@ -1,6 +1,6 @@
 ﻿# Resizer AI
 
-> Free online image resizer, compressor, and converter. Core image processing uses the configured API with a browser fallback; optional AI processing sends an image to its provider only after submission.
+> Free online image resizer, compressor, and converter. Core image processing uses the configured API with a browser fallback. Background removal downloads an AI model to the browser and processes the image locally; the image itself is not uploaded for removal.
 
 Resize images by exact pixels or by percentage, reduce file size without visible quality loss, and convert between WebP, AVIF, PNG, JPG, and HEIC. Batch processing supports up to 50 images per run, and the free tier requires no account.
 

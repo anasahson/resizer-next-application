@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Privacy Policy — Image Processing & Data Use | Resizer AI',
   description:
-    'Learn how Resizer AI processes image files, records limited processing metadata, and handles optional provider-backed AI requests.',
+    'Learn how Resizer AI processes image files, records limited processing metadata, and handles browser-based background removal.',
   keywords: [
     'private image resizer',
     'zero upload image resizer',

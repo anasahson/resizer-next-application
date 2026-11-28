@@ -29,6 +29,6 @@ To learn more about Next.js, take a look at the following resources:
 
 Run the full stack with Docker Compose from the repository root (`docker compose up --build`), or deploy the `frontend` and `backend` Dockerfiles to any host that can run Node and MySQL. See [DEPLOYMENT.md](../DEPLOYMENT.md) for Render and Docker details.
 
-## Optional background removal
+## Browser-based background removal
 
-The AI background-removal page requires a server-side `REMOVE_BG_API_KEY` and a comma-separated `REMOVE_BG_ALLOWED_USER_IDS` allowlist in the backend environment. It is disabled for accounts not explicitly allowed, and images are sent to the configured provider only when a signed-in user submits a request. Never expose the provider key in frontend variables. The current remove.bg API documentation announces a provider transition starting December 1, 2026; verify the provider endpoint and account before enabling it after that date.
+The `/remove-background` tool uses Transformers.js with the `xrds/isnet-general-onnx-int8` model. Model files (about 45 MB) download from Hugging Face on first use and are cached by the browser; the selected image is processed locally and is not uploaded for background removal. Images over 2048 px on the longest edge are resized before inference to reduce memory use. The runtime is Apache-2.0 and the model is MIT-licensed.

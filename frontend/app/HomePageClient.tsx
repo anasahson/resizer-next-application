@@ -244,6 +244,19 @@ interface PresetItem {
 }
 
 type EditorFitMode = 'fit' | 'fill' | 'stretch' | 'contain';
+type QuickAction = 'compress' | 'convert' | 'resize';
+
+const QUICK_ACTIONS: { id: QuickAction; title: string; description: string }[] = [
+  { id: 'compress', title: 'Compress', description: 'Make files smaller' },
+  { id: 'convert', title: 'Convert', description: 'Change image format' },
+  { id: 'resize', title: 'Resize', description: 'Choose a new size' },
+];
+
+const IMAGE_WORKFLOW_STEPS = [
+  { id: 1, title: 'Choose a task', description: 'Compress, convert, or resize' },
+  { id: 2, title: 'Add images', description: 'Choose or drop your files' },
+  { id: 3, title: 'Process & save', description: 'Review, then download' },
+] as const;
 
 interface SavedEditorPreset {
   id: string;
@@ -283,6 +296,7 @@ export default function Resizer() {
   const [files, setFiles] = useState<File[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [currentPreset, setCurrentPreset] = useState<string | null>(null);
+  const [quickAction, setQuickAction] = useState<QuickAction | null>(null);
   const [presetCategory, setPresetCategory] = useState<'social' | 'ecommerce' | 'devices' | 'print'>('social');
   const [savedPresets, setSavedPresets] = useState<SavedEditorPreset[]>([]);
   const [savedPresetsReady, setSavedPresetsReady] = useState(false);
@@ -349,6 +363,16 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [rightPanelMode, setRightPanelMode] = useState<'settings' | 'results'>('settings');
+
+  const selectQuickAction = (action: QuickAction) => {
+    setQuickAction(action);
+    if (action === 'resize') {
+      setActiveTab('presets');
+      setSizeMode('pixels');
+      return;
+    }
+    setActiveTab('export');
+  };
 
   const originalWidthRef = useRef(INITIAL_ORIGINAL_WIDTH);
   const originalHeightRef = useRef(INITIAL_ORIGINAL_HEIGHT);
@@ -1217,6 +1241,11 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
 
   const sizePercent = estimated.saved > 0 ? `-${estimated.saved}%` : `+${Math.abs(estimated.saved)}%`;
   const estimateText = `~${estimated.formatted} (${sizePercent})`;
+  const currentWorkflowStep = downloadState === 'done'
+    ? 0
+    : quickAction
+      ? files.length > 0 ? 3 : 2
+      : 1;
 
   // ===== RENDER =====
   return (
@@ -1274,27 +1303,72 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
         }}
       />
       <div id="resizer-studio" data-track-section="resizer-studio" className="scroll-mt-24">
+      <ol aria-label="How to use the image tools" className="mb-4 grid grid-cols-3 gap-2">
+        {IMAGE_WORKFLOW_STEPS.map((step) => {
+          const isComplete = step.id === 1
+            ? Boolean(quickAction)
+            : step.id === 2
+              ? files.length > 0
+              : downloadState === 'done';
+          const isCurrent = currentWorkflowStep === step.id;
+          return (
+            <li
+              key={step.id}
+              aria-current={isCurrent ? 'step' : undefined}
+              className={`rounded-2xl border px-3 py-2.5 transition-colors ${
+                isComplete
+                  ? 'border-emerald-500/30 bg-emerald-500/5'
+                  : isCurrent
+                    ? 'border-blue-500/50 bg-blue-500/5'
+                    : 'border-border bg-surface/70'
+              }`}
+            >
+              <p className={`text-[10px] font-bold uppercase tracking-wide ${
+                isComplete ? 'text-emerald-700 dark:text-emerald-400' : isCurrent ? 'text-blue-700 dark:text-blue-400' : 'text-muted'
+              }`}>
+                {isComplete ? '✓ ' : `${step.id}. `}{step.title}
+              </p>
+              <p className="mt-0.5 text-[9px] leading-snug text-muted">{step.description}</p>
+            </li>
+          );
+        })}
+      </ol>
       {files.length === 0 && (
         <section className="mb-6 overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-slate-50 via-white to-blue-50/70 p-4 shadow-[0_18px_60px_-30px_rgba(37,99,235,0.45)] dark:from-zinc-950 dark:via-zinc-900 dark:to-blue-950/40 sm:p-6 lg:p-8">
           <div className="grid gap-7 md:grid-cols-[1.05fr_0.95fr] md:items-center lg:gap-10">
             <div>
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
-                Product photos, ready to publish
+                Image tasks, made simple
               </div>
 
               <h1 className="max-w-2xl text-3xl font-black tracking-[-0.04em] text-primary dark:text-white sm:text-4xl sm:tracking-[-0.05em] lg:text-5xl lg:leading-[1.05]">
-                Resize product images for every storefront.
+                What would you like to do with your images?
               </h1>
 
               <p className="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-                Turn product photos into consistent, lightweight assets for your store, marketplace,
-                ads, and website. Resize, crop, compress, and convert a whole batch in one workflow.
+                Choose a task, add your photos, and we’ll show you the right settings. No technical setup needed.
               </p>
 
-              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-muted">
-                <span>Exact pixel sizing</span>
-                <span>WebP and AVIF export</span>
-                <span>Batch up to 50 images</span>
+              <div className="mt-6">
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Step 1 · Choose a task</h2>
+                <div className="grid grid-cols-3 gap-2">
+                  {QUICK_ACTIONS.map((action) => (
+                    <button
+                      type="button"
+                      key={action.id}
+                      aria-pressed={quickAction === action.id}
+                      onClick={() => selectQuickAction(action.id)}
+                      className={`rounded-2xl border p-3 text-left transition-all ${
+                        quickAction === action.id
+                          ? 'border-blue-500 bg-blue-50 shadow-sm dark:bg-blue-500/10'
+                          : 'border-border bg-white/70 hover:border-blue-400 dark:bg-zinc-900'
+                      }`}
+                    >
+                      <span className="block text-sm font-bold text-primary dark:text-white">{action.title}</span>
+                      <span className="mt-1 block text-[10px] leading-snug text-muted">{action.description}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -1322,9 +1396,13 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
               <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20 transition-transform group-hover:scale-105">
                 <Upload className="h-7 w-7" />
               </span>
-              <h2 className="mt-4 text-lg font-bold text-primary dark:text-white">Start with your product photos</h2>
+              <h2 className="mt-4 text-lg font-bold text-primary dark:text-white">
+                {quickAction ? `Step 2 · Add images to ${quickAction}` : 'Step 2 · Add your images'}
+              </h2>
               <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">
-                Drop images here or choose files to open the editor. Apply store-ready dimensions, formats, and compression.
+                {quickAction
+                  ? 'Drag and drop your files here, or choose images from your device. You can add up to 50.'
+                  : 'Choose images from your device or drop them here. You can add up to 50.'}
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 <button
@@ -1332,7 +1410,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                   onClick={() => fileInputRef.current?.click()}
                   className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition-colors hover:bg-blue-500"
                 >
-                  Choose product images
+                  {quickAction ? `Choose images to ${quickAction}` : 'Choose images'}
                   <ArrowRight className="h-4 w-4" />
                 </button>
                 <button
@@ -1898,20 +1976,29 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                     {downloadState === 'processing' ? (
                       <>
                         <RefreshCw className="w-5 h-5 animate-spin" />
-                        <span>Optimizing {files.length} image{files.length > 1 ? 's' : ''}…</span>
+                        <span>
+                          {quickAction === 'convert' ? 'Converting' : quickAction === 'resize' ? 'Resizing' : 'Compressing'} {files.length} image{files.length > 1 ? 's' : ''}…
+                        </span>
                       </>
                     ) : downloadState === 'done' ? (
                       <>
                         <CheckCircle2 className="w-5 h-5" />
-                        <span>Re-Process {files.length > 1 ? `All ${files.length} Images` : 'Image'}</span>
+                        <span>Process again</span>
                       </>
                     ) : (
                       <>
                         <Zap className="w-5 h-5" />
-                        <span>Process &amp; Optimize {files.length > 1 ? `${files.length} Images` : 'Image'}</span>
+                        <span>
+                          Step 3 · {quickAction === 'convert' ? 'Convert' : quickAction === 'resize' ? 'Resize' : quickAction === 'compress' ? 'Compress' : 'Process'} {files.length > 1 ? `${files.length} images` : 'image'}
+                        </span>
                       </>
                     )}
                   </button>
+                  <p className="mt-2 text-center text-xs leading-relaxed text-muted">
+                    {downloadState === 'done'
+                      ? 'Your images are ready. Download one image or choose Download All ZIP.'
+                      : 'After processing, download an image or save the whole batch as a ZIP.'}
+                  </p>
                 </div>
               </div>
 
@@ -1974,6 +2061,31 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                   )}
 
                   <div className="p-5 space-y-5">
+
+                  <section aria-label="Choose image task" className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted">What do you want to do?</h3>
+                      <span className="text-[10px] text-muted">Change anytime</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {QUICK_ACTIONS.map((action) => (
+                        <button
+                          type="button"
+                          key={action.id}
+                          aria-pressed={quickAction === action.id}
+                          onClick={() => selectQuickAction(action.id)}
+                          className={`rounded-xl border px-2 py-2 text-center transition-colors ${
+                            quickAction === action.id
+                              ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                              : 'border-border bg-surface text-muted hover:border-blue-400 hover:text-primary'
+                          }`}
+                        >
+                          <span className="block text-xs font-bold">{action.title}</span>
+                          <span className="mt-0.5 block text-[9px] leading-tight">{action.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
 
                   {/* ── RESULTS PANEL (shown right next to the canvas) ── */}
                   {rightPanelMode === 'results' && results.length > 0 && (
@@ -3084,7 +3196,7 @@ const [hostQueue, setHostQueue] = useState<QueueSnapshot>({
                 },
                 {
                   q: 'Are my uploaded photos safe, private, and confidential?',
-                  a: 'Core image processing uses the configured backend with a browser fallback. The app does not permanently store image files, though processing metadata may be recorded. Optional AI background removal sends the selected image to its provider only after you submit it.',
+                  a: 'Core image processing uses the configured backend with a browser fallback. The app does not permanently store image files, though processing metadata may be recorded. AI background removal downloads its model to your browser and processes your image locally.',
                 },
                 {
                   q: 'What is the difference between WebP, AVIF, and JPG formats?',

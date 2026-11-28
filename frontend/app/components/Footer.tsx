@@ -26,6 +26,7 @@ const footerGroups = [
     title: 'Company',
     links: [
       ['Features', '/features'],
+      ['Quick start guide', '/guide'],
       ['Guides', '/blog'],
       ['Image analyzer', '/analyzer'],
       ['Contact', '/contact'],

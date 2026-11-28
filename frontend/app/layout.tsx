@@ -275,7 +275,7 @@ const jsonLdData = {
           name: "Is my data private and secure?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Image processing uses the configured backend with a browser fallback. The app does not permanently store image files, but processing metadata may be recorded. Optional AI background removal sends the selected image to its provider when you submit it.",
+            text: "Image processing uses the configured backend with a browser fallback. The app does not permanently store image files, but processing metadata may be recorded. AI background removal downloads its model to your browser and processes your image locally.",
           },
         },
         {

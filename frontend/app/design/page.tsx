@@ -102,7 +102,7 @@ export default function DesignPage() {
                 Resize, compress and prepare images in one workspace.
               </h1>
               <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted">
-                A product-grade image toolkit with clear processing choices. Optional AI background removal sends the selected image to its provider after submission.
+                A product-grade image toolkit with clear processing choices. AI background removal runs in your browser; the model downloads on first use and your image stays on your device.
               </p>
             </div>
             <div className="mt-8">
@@ -298,7 +298,7 @@ export default function DesignPage() {
               Resize, compress &amp; remove backgrounds.
             </h1>
             <p className="mt-2 text-xs leading-relaxed text-muted">
-              Core processing uses the configured API. Optional AI sends the selected image only when submitted.
+              Background removal runs in your browser. The AI model downloads on first use; your image stays on your device.
             </p>
             <div className="mt-4">
               <Dropzone compact />

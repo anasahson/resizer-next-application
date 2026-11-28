@@ -39,6 +39,11 @@ const configuredOrigins = [
   .map(normalizeOrigin)
   .filter(Boolean);
 
+const deployedOrigins = [
+  'https://resizer-ai.vercel.app',
+  'https://resizer-pi-tan.vercel.app',
+];
+
 const defaultLocalOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
@@ -48,7 +53,7 @@ const defaultLocalOrigins = [
   'http://127.0.0.1:3001',
 ];
 
-const allowedOrigins = Array.from(new Set([...configuredOrigins, ...defaultLocalOrigins]));
+const allowedOrigins = Array.from(new Set([...configuredOrigins, ...deployedOrigins, ...defaultLocalOrigins]));
 
 const isAllowedOrigin = (origin) => {
   if (!origin) return true;
@@ -70,9 +75,21 @@ app.use(
       return callback(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'X-CSRF-Token',
+      'Accept',
+      'Accept-Version',
+      'Content-Length',
+      'Content-MD5',
+      'Date',
+      'X-Api-Version',
+    ],
     exposedHeaders: ['Content-Disposition', 'X-Original-Size', 'X-Processed-Size', 'X-Processing-Time-Ms'],
     credentials: true,
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -103,8 +120,6 @@ const getApiData = () => ({
       batch: { method: 'POST', path: '/api/images/batch', desc: 'Batch image resize/convert (multipart)', getDocs: true },
       process: { method: 'POST', path: '/api/images/process', desc: 'Single image resize/convert (multipart)', getDocs: true },
       metadata: { method: 'POST', path: '/api/images/metadata', desc: 'Extract EXIF & dimensions (multipart)', getDocs: true },
-      removeBackground: { method: 'POST', path: '/api/images/remove-background', desc: 'Remove an image background (authenticated, allowlisted provider use)' },
-      removeBackgroundStatus: { method: 'GET', path: '/api/images/remove-background/status', desc: 'Check whether background removal is enabled for the authenticated account' },
     },
     auth: {
       login: { method: 'POST', path: '/api/auth/login', desc: 'User login & JWT token' },

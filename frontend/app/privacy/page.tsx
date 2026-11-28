@@ -5,7 +5,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com
 const highlights = [
   {
     title: 'Transparent processing',
-    text: 'Core image processing uses the configured backend with a browser fallback. Optional AI processing sends a selected image to its provider only after submission.',
+    text: 'Core image processing uses the configured backend with a browser fallback. Background removal downloads its model, then processes images locally in your browser.',
   },
   {
     title: 'No personal image storage',
@@ -25,7 +25,7 @@ const faqItems = [
   {
     question: 'How are my images processed?',
     answer:
-      'Core image processing uses the configured backend and falls back to browser processing when needed. The app does not permanently store image files, but processing metadata may be recorded. Background removal sends the selected image to the configured provider after you submit it.',
+      'Core image processing uses the configured backend and falls back to browser processing when needed. The app does not permanently store image files, but processing metadata may be recorded. Background removal downloads model files to your browser and processes the selected image locally without uploading it.',
   },
   {
     question: 'Do you store my photos or metadata?',
@@ -116,7 +116,7 @@ export default function PrivacyPage() {
                   Core image jobs are sent to the configured processing backend, with a browser fallback if the service is unavailable. The HTML analyzer parses pasted or uploaded markup locally and does not visit the referenced website.
                 </p>
                 <p>
-                  Image files are not permanently stored by this app. Backend processing metadata may be recorded. Optional AI background removal sends the selected image to the configured provider only after you submit the request; cloud hosting is a separate explicit action.
+                  Image files are not permanently stored by this app. Backend processing metadata may be recorded. Background removal downloads model files to your browser, then processes the selected image on your device without uploading it; cloud hosting is a separate explicit action.
                 </p>
               </div>
             </article>
@@ -126,7 +126,7 @@ export default function PrivacyPage() {
               <h2 className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">Processing choices and data handling</h2>
               <ul className="mt-5 space-y-4 text-sm leading-7 text-slate-600 dark:text-zinc-300">
                 <li><strong className="text-slate-900 dark:text-white">Core image processing:</strong> requests use the configured processing API, with browser-side fallback when needed.</li>
-                <li><strong className="text-slate-900 dark:text-white">Provider-backed AI:</strong> background removal sends the selected image to the configured provider only after you submit it.</li>
+                <li><strong className="text-slate-900 dark:text-white">Browser-based AI:</strong> the background-removal model is downloaded to your browser; your selected image is processed on your device and is not uploaded for removal.</li>
                 <li><strong className="text-slate-900 dark:text-white">No permanent image storage:</strong> the app does not keep source or processed image files in its database; processing metadata may be recorded.</li>
                 <li><strong className="text-slate-900 dark:text-white">Markup analyzer:</strong> pasted or uploaded HTML is analyzed locally and is not sent to the backend.</li>
               </ul>

@@ -31,6 +31,7 @@ const TOOL_LINKS = [
 ];
 
 const LEARN_LINKS = [
+  { label: 'Quick start guide', href: '/guide', description: 'Simple steps for the most common tasks' },
   { label: 'Image size presets', href: '/presets', description: 'Storefront, social, and print sizes' },
   { label: 'Image SEO analyzer', href: '/analyzer', description: 'Audit supplied HTML markup locally' },
   { label: 'Features', href: '/features', description: 'See how the product works' },
@@ -139,6 +140,9 @@ export default function Navbar() {
           </Link>
           <Link href="/tools?tool=convert" className={navLinkClass(false)}>
             Convert
+          </Link>
+          <Link href="/guide" className={navLinkClass(isActive('/guide'))}>
+            How to use
           </Link>
           <Link href="/remove-background" className={navLinkClass(isActive('/remove-background'))}>
             AI Tools

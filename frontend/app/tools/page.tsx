@@ -57,6 +57,8 @@ type ActiveTool = 'convert' | 'compress' | 'resize' | 'batch' | 'pdf' | 'image-p
 type OutputFormat = ImageOutputFormat;
 type FitMode = 'contain' | 'cover' | 'fill' | 'inside' | 'outside';
 
+const MAX_PARALLEL_IMAGE_JOBS = 3;
+
 const CATEGORY_DEFAULT_TOOL: Record<ToolCategoryId, ActiveTool> = {
   optimize: 'compress',
   resize: 'resize',
@@ -539,7 +541,14 @@ export default function ToolsPage() {
     }
   }, [buildFd, outputFormat, showToast, processWithCanvas, rotation, flipX, flipY, filter, watermark, filenamePrefix, filenameSuffix, imageNames]);
 
-  const processAll = useCallback(async () => { for (const img of images) await processImage(img); }, [images, processImage]);
+  const processAll = useCallback(async () => {
+    const workerCount = Math.min(MAX_PARALLEL_IMAGE_JOBS, images.length);
+    await Promise.all(Array.from({ length: workerCount }, async (_, workerIndex) => {
+      for (let index = workerIndex; index < images.length; index += workerCount) {
+        await processImage(images[index]);
+      }
+    }));
+  }, [images, processImage]);
 
   const dl = (r: ProcessedResult) => { const a = document.createElement('a'); a.href = r.dataBase64; a.download = r.filename; a.click(); };
   const dlAll = () => {

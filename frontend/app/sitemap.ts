@@ -43,6 +43,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.85,
     },
     {
+      url: `${SITE_URL}/guide`,
+      lastModified: currentDate,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
       url: `${SITE_URL}/analyzer`,
       lastModified: currentDate,
       changeFrequency: 'monthly',
