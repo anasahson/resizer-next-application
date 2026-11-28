@@ -5,15 +5,15 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f7f8fc;
+  --foreground: #111827;
   --surface: #ffffff;
-  --surface-elevated: #f1f5f9;
-  --primary: #0f172a;
+  --surface-elevated: #f3f5fb;
+  --primary: #111827;
   --secondary: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --border: #e2e8f0;
+  --muted: #667085;
+  --accent: #4f46e5;
+  --border: #e7eaf2;
   --positive: #059669;
   --danger: #dc2626;
   color-scheme: light;
@@ -55,6 +55,30 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(79, 70, 229, 0.045), transparent 22rem),
+    radial-gradient(circle at 92% 12%, rgba(14, 165, 233, 0.035), transparent 20rem);
+}
+
+::selection {
+  background: rgba(79, 70, 229, 0.18);
+  color: var(--primary);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+  background-clip: padding-box;
 }
 
 .resizora-canvas-editor {

@@ -1,18 +1,18 @@
 ﻿# Resizer AI
 
-> Free online image resizer, compressor, and converter that runs entirely in your browser. Your files never leave your device.
+> Free online image resizer, compressor, and converter. Core image processing uses the configured API with a browser fallback; optional AI processing sends an image to its provider only after submission.
 
 Resize images by exact pixels or by percentage, reduce file size without visible quality loss, and convert between WebP, AVIF, PNG, JPG, and HEIC. Batch processing supports up to 50 images per run, and the free tier requires no account.
 
 ## Pages
 
-- [Home](https://resizer-ai.vercel.app/): main resizer studio with popular social size presets
-- [Tools](https://resizer-ai.vercel.app/tools): format converters and compression tools
-- [Features](https://resizer-ai.vercel.app/features): architecture and privacy model
-- [Pricing](https://resizer-ai.vercel.app/pricing): free tier plus Pro and Business plans
-- [Blog](https://resizer-ai.vercel.app/blog): image optimization and web performance guides
+- [Home](https://resizer-ai.com/): main resizer studio with popular social size presets
+- [Tools](https://resizer-ai.com/tools): format converters and compression tools
+- [Features](https://resizer-ai.com/features): architecture and privacy model
+- [Pricing](https://resizer-ai.com/pricing): free tier plus Pro and Business plans
+- [Blog](https://resizer-ai.com/blog): image optimization and web performance guides
 
 ## Crawling
 
-- Robots: https://resizer-ai.vercel.app/robots.txt
-- Sitemap: https://resizer-ai.vercel.app/sitemap.xml
+- Robots: https://resizer-ai.com/robots.txt
+- Sitemap: https://resizer-ai.com/sitemap.xml

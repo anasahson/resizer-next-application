@@ -4,12 +4,12 @@ const SITE_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com
 
 const highlights = [
   {
-    title: 'Zero image uploads',
-    text: 'Most image editing happens locally in your browser. We do not require you to upload your photos to a remote server before editing.',
+    title: 'Transparent processing',
+    text: 'Core image processing uses the configured backend with a browser fallback. Optional AI processing sends a selected image to its provider only after submission.',
   },
   {
     title: 'No personal image storage',
-    text: 'We do not keep your original files, processed files, or image metadata in a central database unless you explicitly choose a cloud export flow.',
+    text: 'The app does not permanently store image files. The backend may record processing metadata, and cloud hosting is available only through an explicit action.',
   },
   {
     title: 'Consent-first analytics',
@@ -23,14 +23,14 @@ const highlights = [
 
 const faqItems = [
   {
-    question: 'Do you upload my images to your servers?',
+    question: 'How are my images processed?',
     answer:
-      'No. Resizer AI is built for local processing. Your images stay in the browser unless you explicitly use a feature that sends them to an external provider you choose.',
+      'Core image processing uses the configured backend and falls back to browser processing when needed. The app does not permanently store image files, but processing metadata may be recorded. Background removal sends the selected image to the configured provider after you submit it.',
   },
   {
     question: 'Do you store my photos or metadata?',
     answer:
-      'We do not keep image files as part of the default editing experience. We do not retain original image bytes, EXIF data, or hidden metadata as part of standard processing logs.',
+      'The backend records processing metadata, but the app does not permanently store image bytes. Metadata stripping is applied only when you enable that option.',
   },
   {
     question: 'What analytics do you collect?',
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
             name: 'Resizer AI Privacy Policy',
             url: `${SITE_URL}/privacy`,
             description:
-              'Resizer AI privacy policy covering local image processing, zero-upload by default, analytics consent, and data protection practices.',
+              'Resizer AI privacy policy covering image processing, provider-backed tools, analytics consent, and data handling.',
             inLanguage: 'en-US',
             publisher: {
               '@type': 'Organization',
@@ -79,10 +79,10 @@ export default function PrivacyPage() {
               Privacy-first design
             </span>
             <h1 className="mt-5 text-4xl font-black tracking-[-0.06em] sm:text-5xl lg:text-6xl">
-              Privacy policy for a zero-upload image tool.
+              Privacy policy for image processing and optional AI tools.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-blue-50 sm:text-lg">
-              Resizer AI is built to put you in control. Your files stay local by default, your image data is not treated as a product, and analytics only run after explicit consent.
+              Resizer AI is built to put you in control. Processing behavior is disclosed, provider-backed features require an explicit request, and analytics only run after consent.
             </p>
           </div>
         </div>
@@ -113,22 +113,22 @@ export default function PrivacyPage() {
               </h2>
               <div className="mt-5 space-y-5 text-base leading-8 text-slate-600 dark:text-zinc-300">
                 <p>
-                  Resizer AI is designed around local-first image processing. In the default flow, your originals are processed directly in the browser and are not uploaded to a server for transformation, storage, indexing, or analysis.
+                  Core image jobs are sent to the configured processing backend, with a browser fallback if the service is unavailable. The HTML analyzer parses pasted or uploaded markup locally and does not visit the referenced website.
                 </p>
                 <p>
-                  That means your photos, screenshots, product images, and social graphics are not kept in a cloud upload queue as part of the normal editing process. We focus on speed, privacy, and quality without turning your content into a data pipeline.
+                  Image files are not permanently stored by this app. Backend processing metadata may be recorded. Optional AI background removal sends the selected image to the configured provider only after you submit the request; cloud hosting is a separate explicit action.
                 </p>
               </div>
             </article>
 
             <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">How it works</p>
-              <h2 className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">Local processing by default</h2>
+              <h2 className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">Processing choices and data handling</h2>
               <ul className="mt-5 space-y-4 text-sm leading-7 text-slate-600 dark:text-zinc-300">
-                <li><strong className="text-slate-900 dark:text-white">Browser-native editing:</strong> image resizing, compression, format conversion, and previews happen locally on your device.</li>
-                <li><strong className="text-slate-900 dark:text-white">No hidden upload step:</strong> the app does not silently send your files to a background service during normal editing.</li>
-                <li><strong className="text-slate-900 dark:text-white">No image indexing:</strong> your original files are not cataloged or stored for later reuse unless you choose an explicit export flow.</li>
-                <li><strong className="text-slate-900 dark:text-white">Metadata-aware workflows:</strong> we support local cleanup of EXIF and other metadata when needed for privacy and sharing safety.</li>
+                <li><strong className="text-slate-900 dark:text-white">Core image processing:</strong> requests use the configured processing API, with browser-side fallback when needed.</li>
+                <li><strong className="text-slate-900 dark:text-white">Provider-backed AI:</strong> background removal sends the selected image to the configured provider only after you submit it.</li>
+                <li><strong className="text-slate-900 dark:text-white">No permanent image storage:</strong> the app does not keep source or processed image files in its database; processing metadata may be recorded.</li>
+                <li><strong className="text-slate-900 dark:text-white">Markup analyzer:</strong> pasted or uploaded HTML is analyzed locally and is not sent to the backend.</li>
               </ul>
             </article>
           </div>
@@ -197,7 +197,7 @@ export default function PrivacyPage() {
         <section className="mt-16 rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-100 to-blue-50 p-6 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-blue-950/40 sm:p-8">
           <h2 className="text-2xl font-bold tracking-[-0.04em] text-slate-900 dark:text-white">Your privacy controls, included by design.</h2>
           <div className="mt-5 flex flex-wrap gap-3">
-            {['No mandatory upload', 'No hidden tracking', 'Explicit consent', 'Local processing', 'Easy withdrawal'].map((tag) => (
+            {['Processing disclosed', 'No hidden tracking', 'Explicit provider action', 'Local HTML audit', 'Easy withdrawal'].map((tag) => (
               <span key={tag} className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200">
                 {tag}
               </span>

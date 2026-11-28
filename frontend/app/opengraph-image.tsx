@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-export const alt = 'Resizer AI — Free Online Image Resizer & Compressor';
+export const alt = 'Resizer AI product image workspace';
 export const size = {
   width: 1200,
   height: 630,
@@ -78,7 +78,7 @@ export default async function Image() {
             maxWidth: '1000px',
           }}
         >
-          Free Online Image Resizer & Compressor
+          Product Images, Ready to Publish
         </h1>
 
         <p
@@ -91,7 +91,7 @@ export default async function Image() {
             lineHeight: 1.4,
           }}
         >
-          Resize images in exact pixels or percentage. Convert to WebP, AVIF, PNG & JPG. 100% private in your browser.
+          Resize, crop, compress, and convert product photos for stores and the web.
         </p>
 
         <div
@@ -112,7 +112,7 @@ export default async function Image() {
               fontWeight: 700,
             }}
           >
-            ⚡ Zero Server Uploads
+            ⚡ Exact image dimensions
           </div>
           <div
             style={{

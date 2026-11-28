@@ -18,16 +18,16 @@ const CORE_FEATURES: FeatureItem[] = [
   {
     id: 'privacy-engine',
     icon: '🛡️',
-    title: '100% Client-Side Privacy',
-    badge: 'Zero Cloud Uploads',
-    description: 'All image transformation, cropping, and compression runs completely within your browser using local canvas and WebAssembly engines.',
-    highlight: 'Your confidential photos and documents never touch external servers or third-party databases.',
+    title: 'Private Image Processing',
+    badge: 'No Permanent Image Storage',
+    description: 'Image processing uses the configured API with a browser fallback. PDF rendering and HTML markup audits run locally.',
+    highlight: 'Images are not permanently stored by this app. Optional AI background removal sends the selected image to its provider only when you submit it.',
     gradient: 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
     details: [
-      'Zero latency: Instant processing without waiting for upload/download rounds',
-      'No data collection or metadata tracking',
-      'Works seamlessly offline once cached in browser',
-      'Full compliance with GDPR, HIPAA, and strict privacy standards',
+      'Server-side processing with a browser fallback where available',
+      'Image files are not sent to analytics',
+      'Provider-backed AI actions require an explicit user request',
+      'The backend records processing metadata, not permanent image files',
     ],
   },
   {
@@ -103,6 +103,21 @@ const CORE_FEATURES: FeatureItem[] = [
       'Accessible focus states and ARIA labels',
       'Smooth micro-interactions and instant visual feedback',
       'Zero installation, zero accounts, and zero paywalls',
+    ],
+  },
+  {
+    id: 'pdf-to-images',
+    icon: '📄',
+    title: 'PDF to Images',
+    badge: 'New',
+    description: 'Drop a PDF and export every page as PNG, JPEG, or WebP at screen, retina, or print resolution.',
+    highlight: 'Page ranges, password-protected files, and a ZIP download — all rendered locally in the browser.',
+    gradient: 'from-sky-500/20 to-indigo-500/20 border-sky-500/30',
+    details: [
+      'One image per page with original document layout preserved',
+      'PNG for text, JPEG for photos, WebP for the web',
+      'Optional page range so you only convert what you need',
+      'Download individual pages or the full set as a ZIP',
     ],
   },
 ];
@@ -345,7 +360,7 @@ export default function FeaturesPage() {
                 <div className="flex items-start gap-3">
                   <span className="text-emerald-500 font-bold">✓</span>
                   <span className="text-primary dark:text-zinc-200">
-                    <strong>100% Private:</strong> Files never leave your RAM. Zero server risk.
+                    <strong>Private by design:</strong> Images are not permanently stored; processing metadata may be recorded.
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
@@ -541,7 +556,7 @@ export default function FeaturesPage() {
               Ready to Optimize & Resize Your Images?
             </h2>
             <p className="text-blue-100 text-base sm:text-lg mb-8 leading-relaxed">
-              No account creation, no download limits, and 100% private. Start transforming images in seconds.
+              Prepare product photos for your store and the web, with no mandatory sign-in for the core image workflow.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link

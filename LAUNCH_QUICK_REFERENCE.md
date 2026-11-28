@@ -171,16 +171,16 @@ npm run dev
 
 ## **Deployment Checklist (When Ready)**
 
-### **Frontend (Vercel)**
+### **Frontend (Docker / Render)**
 - [ ] Push to GitHub
-- [ ] Connect Vercel
+- [ ] Build the `frontend` Dockerfile or `docker compose up --build`
 - [ ] Set `NEXT_PUBLIC_API_URL=https://your-backend.com/api`
 - [ ] Deploy
 - [ ] Custom domain
 
-### **Backend (Railway/Heroku)**
+### **Backend (Docker / Render)**
 - [ ] Push to GitHub
-- [ ] Create Railway/Heroku project
+- [ ] Create a Docker or Render project from `backend/`
 - [ ] Add environment variables
 - [ ] Add MySQL (or use Docker)
 - [ ] Add Redis (or use Docker)
@@ -193,7 +193,7 @@ npm run dev
 - [ ] SSL/TLS required
 
 ### **DNS & SSL**
-- [ ] Point custom domain to Vercel
+- [ ] Point custom domain to the frontend host
 - [ ] Update API URL in frontend
 - [ ] SSL auto-provisioned
 

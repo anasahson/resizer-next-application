@@ -18,7 +18,7 @@
 
 ### **Week 1: Soft Launch**
 - [ ] Build & test everything locally
-- [ ] Deploy to Vercel (frontend) + Heroku/Railway (backend)
+- [ ] Deploy frontend and backend with Docker or Render
 - [ ] Get SSL certificates
 - [ ] Set up GitHub repo (public)
 - [ ] Create Product Hunt account

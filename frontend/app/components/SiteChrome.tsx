@@ -1,18 +1,20 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import Navbar from './Navbar';
 import Footer from './Footer';
 
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isEditor = pathname === '/tools';
+  const searchParams = useSearchParams();
+  const isToolsPage = pathname === '/tools';
+  const isImmersiveEditor = isToolsPage && !searchParams.has('tool') && !searchParams.has('preset');
 
   return (
     <>
-      {!isEditor && <Navbar />}
-      <main className={`flex-1 ${isEditor ? '' : 'pt-16'}`}>{children}</main>
-      {!isEditor && <Footer />}
+      {!isImmersiveEditor && <Navbar />}
+      <main className={`flex-1 ${isImmersiveEditor ? '' : 'pt-16'}`}>{children}</main>
+      {!isToolsPage && <Footer />}
     </>
   );
 }

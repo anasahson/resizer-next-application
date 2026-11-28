@@ -1,4 +1,6 @@
 import { MetadataRoute } from 'next';
+import { PRESETS } from './lib/presets';
+import { TOOL_ITEMS } from './data/tools';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.com').replace(/\/+$/, '');
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -41,6 +43,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.85,
     },
     {
+      url: `${SITE_URL}/analyzer`,
+      lastModified: currentDate,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${SITE_URL}/remove-background`,
+      lastModified: currentDate,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
       url: `${SITE_URL}/pricing`,
       lastModified: currentDate,
       changeFrequency: 'weekly',
@@ -59,6 +73,35 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     },
   ];
+
+  // Preset landing pages: one URL per high-intent search job, each with its own
+  // title, H1 and FAQ schema (see app/presets/[slug]/page.tsx).
+  const presetRoutes: MetadataRoute.Sitemap = [
+    {
+      url: `${SITE_URL}/presets`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    ...PRESETS.map((preset) => ({
+      url: `${SITE_URL}/presets/${preset.slug}`,
+      lastModified: currentDate,
+      changeFrequency: 'monthly' as const,
+      priority: 0.9,
+    })),
+  ];
+
+  const toolRoutes: MetadataRoute.Sitemap = TOOL_ITEMS.map((tool) => ({
+    url: `${SITE_URL}${tool.href}`,
+    lastModified: currentDate,
+    changeFrequency: 'monthly' as const,
+    priority: tool.badge === 'New' ? 0.82 : 0.88,
+  })).concat({
+    url: `${SITE_URL}/workflows`,
+    lastModified: currentDate,
+    changeFrequency: 'monthly' as const,
+    priority: 0.75,
+  });
 
   // Dynamically load active blog post slugs strictly from live database
   let blogRoutes: MetadataRoute.Sitemap = [];
@@ -94,5 +137,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
   }
 
-  return [...staticRoutes, ...blogRoutes];
+  return [...staticRoutes, ...presetRoutes, ...toolRoutes, ...blogRoutes];
 }

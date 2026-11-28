@@ -1,17 +1,13 @@
 const assert = require('node:assert/strict');
 const { after, before, test } = require('node:test');
+const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = 'smoke-test-only-secret-with-at-least-32-characters';
 process.env.NODE_ENV = 'test';
 process.env.CORS_ORIGIN = 'https://frontend.example.test';
-delete process.env.VERCEL;
 
-process.env.VERCEL = '1';
 const upload = require('../src/middleware/upload.middleware');
-delete process.env.VERCEL;
-
 const app = require('../src/app');
-const requestBodyLimit = require('../src/middleware/vercel-upload-body-limit.middleware');
 
 let server;
 let baseUrl;
@@ -30,11 +26,11 @@ after(async () => {
   }
 });
 
-test('backend exports an Express app and uses a Vercel-safe file-size cap', () => {
-  const vercelApp = require('../index');
-  assert.equal(typeof vercelApp, 'function');
-  assert.equal(typeof vercelApp.listen, 'function');
-  assert.equal(upload.MAX_FILE_SIZE_BYTES, 16 * 1024 * 1024);
+test('backend exports an Express app and uses the configured file-size cap', () => {
+  const exportedApp = require('../index');
+  assert.equal(typeof exportedApp, 'function');
+  assert.equal(typeof exportedApp.listen, 'function');
+  assert.equal(upload.MAX_FILE_SIZE_BYTES, 50 * 1024 * 1024);
 });
 
 test('API explorer requires configured credentials and rejects anonymous requests', async () => {
@@ -85,51 +81,6 @@ test('CORS permits the configured frontend origin only', async () => {
   assert.equal(denied.headers.get('access-control-allow-origin'), null);
 });
 
-test('Vercel upload guard rejects oversized requests and allows requests under the cap', () => {
-  const originalVercel = process.env.VERCEL;
-  process.env.VERCEL = '1';
-
-  const makeResponse = () => ({
-    statusCode: 200,
-    body: null,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    json(payload) {
-      this.body = payload;
-      return this;
-    },
-  });
-
-  try {
-    let nextCalled = false;
-    const oversizedResponse = makeResponse();
-    requestBodyLimit(
-      { path: '/api/images/batch', headers: { 'content-length': String(requestBodyLimit.MAX_UPLOAD_REQUEST_BYTES + 1) } },
-      oversizedResponse,
-      () => { nextCalled = true; },
-    );
-    assert.equal(oversizedResponse.statusCode, 413);
-    assert.equal(nextCalled, false);
-
-    const allowedResponse = makeResponse();
-    requestBodyLimit(
-      { path: '/api/images/batch', headers: { 'content-length': String(requestBodyLimit.MAX_UPLOAD_REQUEST_BYTES) } },
-      allowedResponse,
-      () => { nextCalled = true; },
-    );
-    assert.equal(allowedResponse.statusCode, 200);
-    assert.equal(nextCalled, true);
-  } finally {
-    if (originalVercel === undefined) {
-      delete process.env.VERCEL;
-    } else {
-      process.env.VERCEL = originalVercel;
-    }
-  }
-});
-
 test('Auth0 administration service reports unconfigured state without network access', async () => {
   const auth0Admin = require('../src/services/auth0Admin.service');
 
@@ -148,4 +99,37 @@ test('Auth0 administration service reports unconfigured state without network ac
     auth0Admin.getToken(),
     (error) => error.code === 'NOT_CONFIGURED',
   );
+});
+
+test('background removal endpoint requires authentication before provider access', async () => {
+  const response = await fetch(`${baseUrl}/api/images/remove-background`, {
+    method: 'POST',
+  });
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, 'Unauthorized');
+});
+
+test('background removal is restricted to configured accounts before provider use', async () => {
+  delete process.env.REMOVE_BG_API_KEY;
+  delete process.env.REMOVE_BG_ALLOWED_USER_IDS;
+  const token = jwt.sign({ id: 'smoke-user', email: 'smoke@example.test', role: 'user' }, process.env.JWT_SECRET);
+
+  const response = await fetch(`${baseUrl}/api/images/remove-background/status`);
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, 'Unauthorized');
+
+  const statusResponse = await fetch(`${baseUrl}/api/images/remove-background/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(statusResponse.status, 200);
+  assert.deepEqual(await statusResponse.json(), { configured: false, available: false });
+
+  process.env.REMOVE_BG_API_KEY = 'test-key-not-used';
+  const deniedResponse = await fetch(`${baseUrl}/api/images/remove-background`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(deniedResponse.status, 403);
+  assert.match((await deniedResponse.json()).error, /not enabled/);
+  delete process.env.REMOVE_BG_API_KEY;
 });

@@ -5,8 +5,8 @@
  * from (URL import vs system file), how long did it take, did it save, where
  * did it end up, and — if it failed — exactly why.
  *
- * Local deployments use append-only daily JSONL files. Vercel deployments use
- * the MySQL table because function filesystems are ephemeral.
+ * Local deployments use append-only daily JSONL files. Set HOSTING_LOG_DB=1
+ * to also persist rows in MySQL.
  *
  * Images themselves are never stored here (or anywhere in the database) — only
  * the hosted URL and the metadata around the attempt.
@@ -44,10 +44,10 @@ function appendToFile(entry) {
 }
 
 /**
- * Insert into MySQL when enabled or when running on Vercel.
+ * Insert into MySQL when HOSTING_LOG_DB=1.
  */
 async function insertToDb(entry) {
-  if (process.env.HOSTING_LOG_DB !== '1' && process.env.VERCEL !== '1') return false;
+  if (process.env.HOSTING_LOG_DB !== '1') return false;
   if (!isDbAvailable()) return false;
   try {
     await pool.query(
@@ -104,9 +104,7 @@ async function logHostingEvent(e) {
     userId: e.userId || null,
   };
 
-  if (process.env.VERCEL !== '1') {
-    appendToFile(entry);
-  }
+  appendToFile(entry);
   await insertToDb(entry);
   return entry;
 }
@@ -118,7 +116,7 @@ async function logHostingEvent(e) {
 async function listHostingLogs({ limit = 100, status, source } = {}) {
   const capped = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
 
-  if ((process.env.HOSTING_LOG_DB === '1' || process.env.VERCEL === '1') && isDbAvailable()) {
+  if (process.env.HOSTING_LOG_DB === '1' && isDbAvailable()) {
     try {
       const where = [];
       const params = [];
@@ -186,7 +184,7 @@ async function hostingLogsCsv(options = {}) {
 async function listSavedImages({ userId = null, limit = 100 } = {}) {
   const capped = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
 
-  if (process.env.VERCEL === '1' && isDbAvailable()) {
+  if (process.env.HOSTING_LOG_DB === '1' && isDbAvailable()) {
     const [rows] = await pool.query(
       `SELECT saved.id, saved.filename, saved.mime_type, saved.size_bytes,
               saved.url, saved.created_at, saved.source, saved.duration_ms, saved.user_id

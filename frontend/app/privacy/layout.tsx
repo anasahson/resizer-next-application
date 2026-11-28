@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy & Zero-Cloud Security — 100% In-Browser Privacy | Resizer AI',
+  title: 'Privacy Policy — Image Processing & Data Use | Resizer AI',
   description:
-    'Our strict privacy commitment: your images never leave your browser. Zero server uploads, zero telemetry on your photos, and 100% client-side WebAssembly execution.',
+    'Learn how Resizer AI processes image files, records limited processing metadata, and handles optional provider-backed AI requests.',
   keywords: [
     'private image resizer',
     'zero upload image resizer',
@@ -15,9 +15,9 @@ export const metadata: Metadata = {
     canonical: '/privacy',
   },
   openGraph: {
-    title: 'Privacy Policy — Resizer AI Zero-Knowledge Image Studio',
+    title: 'Privacy Policy — Resizer AI',
     description:
-      'Learn how Resizer AI protects your privacy with 100% client-side in-browser image optimization.',
+      'Learn how Resizer AI handles image processing, analytics and optional AI providers.',
     url: '/privacy',
   },
 };

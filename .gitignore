@@ -9,6 +9,9 @@ node_modules/
 backend/.env
 frontend/.env.local
 
+# Generated pdf.js runtime assets (copied by frontend postinstall)
+frontend/public/pdfjs/
+
 # Next.js and build output
 frontend/.next/
 frontend/out/
@@ -28,7 +31,6 @@ backend/logs/
 
 # Coverage and local tooling
 coverage/
-.vercel/
 .turbo/
 *.tsbuildinfo
 .eslintcache

@@ -49,11 +49,9 @@ export default function ConsentBanner() {
             <p className="mt-1.5 text-xs leading-relaxed text-muted">
               We use PostHog for anonymous, aggregate usage analytics — which pages and
               features are used, and JavaScript errors.{' '}
-              <b className="text-primary dark:text-zinc-200">
-                Your images never leave your browser
-              </b>{' '}
-              and are never analysed, uploaded or recorded. Session recording is always
-              off. You can decline and use the site fully.
+              Image files are not included in analytics. Core image processing uses the configured
+              processing API with a browser fallback; optional AI tools send images to their provider
+              only after you submit a request. Session recording is always off. You can decline and use the site fully.
             </p>
             <p className="mt-2 text-xs leading-relaxed text-muted">
               See our{' '}

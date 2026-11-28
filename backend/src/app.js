@@ -19,10 +19,9 @@ const exportRoutes = require('./routes/export.routes');
 const storageRoutes = require('./routes/storage.routes');
 const contactRoutes = require('./routes/contact.routes');
 const { trackException } = require('./services/posthog.service');
-const vercelUploadBodyLimit = require('./middleware/vercel-upload-body-limit.middleware');
 
 const app = express();
-if (process.env.VERCEL === '1') {
+if (process.env.TRUST_PROXY === '1' || process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
@@ -81,43 +80,9 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(morgan('dev'));
-app.use(vercelUploadBodyLimit);
 app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-if (process.env.VERCEL === '1') {
-  const { testConnection } = require('./config/db');
-  const { initDb } = require('./config/dbInit');
-  let databaseInitialization;
-
-  app.use(async (req, res, next) => {
-    try {
-      if (!databaseInitialization) {
-        databaseInitialization = (async () => {
-          if (!(await testConnection())) {
-            throw new Error('Database connection failed.');
-          }
-          if (!(await initDb())) {
-            throw new Error('Database initialization failed.');
-          }
-        })().catch((error) => {
-          databaseInitialization = null;
-          throw error;
-        });
-      }
-
-      await databaseInitialization;
-      next();
-    } catch (error) {
-      console.error('[vercel] database initialization failed:', error.message);
-      res.status(503).json({
-        error: 'ServiceUnavailable',
-        message: 'The backend is not ready because database initialization failed.',
-      });
-    }
-  });
-}
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -138,6 +103,8 @@ const getApiData = () => ({
       batch: { method: 'POST', path: '/api/images/batch', desc: 'Batch image resize/convert (multipart)', getDocs: true },
       process: { method: 'POST', path: '/api/images/process', desc: 'Single image resize/convert (multipart)', getDocs: true },
       metadata: { method: 'POST', path: '/api/images/metadata', desc: 'Extract EXIF & dimensions (multipart)', getDocs: true },
+      removeBackground: { method: 'POST', path: '/api/images/remove-background', desc: 'Remove an image background (authenticated, allowlisted provider use)' },
+      removeBackgroundStatus: { method: 'GET', path: '/api/images/remove-background/status', desc: 'Check whether background removal is enabled for the authenticated account' },
     },
     auth: {
       login: { method: 'POST', path: '/api/auth/login', desc: 'User login & JWT token' },

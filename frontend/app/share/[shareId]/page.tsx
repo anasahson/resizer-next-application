@@ -208,7 +208,7 @@ export default function SharedResultPage() {
             <Shield className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-primary dark:text-white">100% Private</h4>
+            <h4 className="text-xs font-bold text-primary dark:text-white">Not stored permanently</h4>
             <p className="text-[11px] text-muted mt-0.5">Images are processed and never stored permanently.</p>
           </div>
         </div>

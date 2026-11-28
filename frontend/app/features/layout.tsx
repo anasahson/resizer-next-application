@@ -1,24 +1,24 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Features & Architecture — High-Speed libvips & In-Browser Processing',
+  title: 'Product Image Editing Features — Resizer AI',
   description:
-    "Explore Resizer AI's performance architecture: 100% private client-side processing, sub-millisecond libvips Sharp engine, WebP and AVIF quantization, and batch workflows.",
+    "Explore Resizer AI's product image workflow: resize, crop, compress, batch process, and export modern image formats with clear processing details.",
   keywords: [
     'image resizing features',
     'sharp engine',
     'libvips image processing',
-    'client-side image resizer',
-    'lossless image quantization',
+    'product image editing',
+    'image format conversion',
     'batch image pipeline',
   ],
   alternates: {
     canonical: '/features',
   },
   openGraph: {
-    title: 'Features & Architecture — Resizer AI Image Processing',
+    title: 'Product Image Editing Features — Resizer AI',
     description:
-      'Explore our high-speed image processing features: in-browser security, sub-millisecond engine, and next-gen format conversion.',
+      'Explore tools for resizing, cropping, compressing, batch processing, and converting product images.',
     url: '/features',
   },
 };

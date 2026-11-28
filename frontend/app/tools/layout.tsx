@@ -10,8 +10,7 @@ const SITE_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://resizer-ai.co
  * dynamic rendering, which is exactly the regression fixed in PostHogProvider
  * that made this page invisible to crawlers.
  *
- * Every URL listed below is a real anchor on the page (the four tool tabs), so
- * the markup can never advertise a link that 404s.
+ * The directory links are backed by real tool routes and studio destinations.
  */
 const toolsSchema = {
   '@context': 'https://schema.org',
@@ -28,11 +27,12 @@ const toolsSchema = {
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       featureList: [
         'Convert images to WebP, AVIF, PNG and JPG',
-        'Compress images up to 90% without visible quality loss',
+        'Adjust compression quality to manage output file size',
         'Resize by pixels or percentage with fit-mode control',
         'Batch convert and compress multiple images at once',
         'Rotate, flip, crop, watermark and filter images',
         'Strip EXIF metadata for privacy',
+        'Convert PDF pages to PNG, JPEG, and WebP images',
       ],
     },
     {
@@ -40,7 +40,7 @@ const toolsSchema = {
       '@id': `${SITE_URL}/tools#tools`,
       name: 'Resizer AI image tools',
       itemListOrder: 'https://schema.org/ItemListOrderAscending',
-      numberOfItems: 4,
+      numberOfItems: 5,
       itemListElement: [
         {
           '@type': 'ListItem',
@@ -66,6 +66,12 @@ const toolsSchema = {
           name: 'Batch processor',
           description: 'Convert, compress and resize many images at once, then export as a ZIP.',
         },
+        {
+          '@type': 'ListItem',
+          position: 5,
+          name: 'PDF to images',
+          description: 'Render each PDF page as a PNG, JPEG, or WebP image in the browser.',
+        },
       ],
     },
     {
@@ -80,9 +86,9 @@ const toolsSchema = {
 };
 
 export const metadata: Metadata = {
-  title: 'Online Image Tools — Convert to WebP, AVIF, PNG, JPG & Batch Compress',
+  title: 'Online Image Tools — Convert, Compress, Resize & PDF to Images',
   description:
-    'Free image conversion and compression tools. Convert between WebP, AVIF, PNG, JPG, and HEIC, compress photos up to 90%, and batch resize images in your browser.',
+    'Free image conversion, compression, and PDF-to-image tools. Convert between WebP, AVIF, PNG, JPG, turn PDF pages into images, and batch resize in your browser.',
   keywords: [
     'image tools',
     'convert to webp',
@@ -92,14 +98,17 @@ export const metadata: Metadata = {
     'compress image online',
     'batch image converter',
     'online photo tools',
+    'pdf to images',
+    'convert pdf to png',
+    'pdf to jpeg',
   ],
   alternates: {
     canonical: '/tools',
   },
   openGraph: {
-    title: 'Online Image Tools — Convert to WebP, AVIF, PNG, JPG & Batch Compress',
+    title: 'Online Image Tools — Convert, Compress, Resize & PDF to Images',
     description:
-      'Free image conversion and compression tools. High efficiency WebP & AVIF conversion directly in your browser.',
+      'Free image conversion, compression, and PDF-to-image tools. High efficiency WebP, AVIF, and PDF page export in your browser.',
     url: '/tools',
   },
 };
